@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Innobyte - Sistema de Etiquetas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#1E293B',
+                        accent: '#F59E0B',
+                        success: '#10B981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        .dashboard-card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .preview-label {
+            border: 1px dashed #cbd5e1;
+            background: #f8fafc;
+        }
+        .template-item {
+            transition: all 0.2s ease;
+        }
+        .template-item:hover {
+            background-color: #f1f5f9;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 bg-white shadow-md">
+            <div class="p-4 border-b">
+                <h1 class="text-xl font-bold text-primary flex items-center">
+                    <i class="fas fa-tags mr-2"></i>
+                    Innobyte Etiquetas
+                </h1>
+                <p class="text-xs text-gray-500 mt-1">Sistema de emissão de etiquetas</p>
+            </div>
+            <nav class="mt-6">
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Principal</div>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 bg-blue-50 border-r-4 border-primary">
+                    <i class="fas fa-tachometer-alt mr-3 text-primary"></i>
+                    Dashboard
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-edit mr-3"></i>
+                    Editor de Modelos
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-print mr-3"></i>
+                    Impressão
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-database mr-3"></i>
+                    Integração API
+                </a>
+                
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-6">Gestão</div>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-layer-group mr-3"></i>
+                    Modelos Salvos
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-history mr-3"></i>
+                    Histórico
+                </a>
+                
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-6">Configurações</div>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-cog mr-3"></i>
+                    Configurações
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100">
+                    <i class="fas fa-user-circle mr-3"></i>
+                    Perfil
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-white shadow-sm z-10">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center">
+                        <button class="text-gray-500 focus:outline-none lg:hidden">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div class="relative mx-4 lg:mx-0">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <i class="fas fa-search text-gray-500"></i>
+                            </span>
+                            <input class="w-32 pl-10 pr-4 rounded-md border border-gray-300 bg-gray-100 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:w-64" type="text" placeholder="Buscar produto...">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center">
+                        <div class="relative">
+                            <button class="flex mx-4 text-gray-600 focus:outline-none">
+                                <i class="fas fa-bell text-xl"></i>
+                                <span class="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
+                            </button>
+                        </div>
+                        
+                        <div class="relative">
+                            <button class="relative flex items-center focus:outline-none">
+                                <img class="h-8 w-8 rounded-full object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80" alt="User">
+                                <span class="mx-2 text-gray-700">Christian</span>
+                                <i class="fas fa-chevron-down text-gray-500"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="flex-1 overflow-y-auto p-6">
+                <!-- Page Title -->
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold text-gray-800">Dashboard de Etiquetas</h1>
+                    <p class="text-gray-600">Sistema de emissão de etiquetas com integração API</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex items-center">
+                            <div class="p-3 rounded-full bg-blue-100 text-primary">
+                                <i class="fas fa-layer-group text-xl"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">Modelos de Etiqueta</p>
+                                <h3 class="text-2xl font-bold text-gray-800">12</h3>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-green-500 text-sm font-medium">
+                                <i class="fas fa-plus mr-1"></i>2 novos
+                            </span>
+                            <span class="text-gray-500 text-sm">este mês</span>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex items-center">
+                            <div class="p-3 rounded-full bg-green-100 text-success">
+                                <i class="fas fa-print text-xl"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">Etiquetas Impressas</p>
+                                <h3 class="text-2xl font-bold text-gray-800">3,842</h3>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-green-500 text-sm font-medium">
+                                <i class="fas fa-arrow-up mr-1"></i>18.5%
+                            </span>
+                            <span class="text-gray-500 text-sm">vs último mês</span>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex items-center">
+                            <div class="p-3 rounded-full bg-yellow-100 text-yellow-500">
+                                <i class="fas fa-barcode text-xl"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">Produtos no ERP</p>
+                                <h3 class="text-2xl font-bold text-gray-800">1,248</h3>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-green-500 text-sm font-medium">
+                                <i class="fas fa-sync-alt mr-1"></i>Sincronizado
+                            </span>
+                            <span class="text-gray-500 text-sm">há 15 min</span>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex items-center">
+                            <div class="p-3 rounded-full bg-purple-100 text-purple-500">
+                                <i class="fas fa-plug text-xl"></i>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm font-medium text-gray-600">Conexão API</p>
+                                <h3 class="text-2xl font-bold text-gray-800">Ativa</h3>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-green-500 text-sm font-medium">
+                                <i class="fas fa-check-circle mr-1"></i>eGestor
+                            </span>
+                            <span class="text-gray-500 text-sm">Integração OK</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts and Editor Preview -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Chart -->
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-semibold text-gray-800">Etiquetas Impressas por Tipo</h2>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 text-xs bg-blue-100 text-primary rounded-md">Mensal</button>
+                                <button class="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-md">Trimestral</button>
+                            </div>
+                        </div>
+                        <div class="h-80">
+                            <canvas id="labelsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Editor Preview -->
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Pré-visualização do Modelo</h2>
+                        <div class="border rounded-lg p-4 bg-gray-50 mb-4">
+                            <div class="flex justify-between mb-2">
+                                <span class="text-sm font-medium">Modelo: <span class="text-primary">Etiqueta Preço 40x30mm</span></span>
+                                <span class="text-sm text-gray-500">Impressora Térmica</span>
+                            </div>
+                            
+                            <!-- Preview Area -->
+                            <div class="preview-label mx-auto p-4 rounded" style="width: 240px; height: 180px;">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="text-xs font-bold">INNOBYTE</div>
+                                    <div class="text-xs bg-yellow-100 px-1 rounded">DESTAQUE</div>
+                                </div>
+                                <div class="text-center mb-2">
+                                    <div class="text-sm font-semibold">Notebook Dell i7</div>
+                                    <div class="text-xs text-gray-600">15.6" 16GB 512SSD</div>
+                                </div>
+                                <div class="flex justify-center mb-2">
+                                    <div class="bg-white p-1 rounded border inline-block">
+                                        <!-- Barcode representation -->
+                                        <div class="flex items-center justify-center h-8">
+                                            <div class="h-1 w-1 bg-black mr-1"></div>
+                                            <div class="h-1 w-1 bg-black mr-1"></div>
+                                            <div class="h-1 w-3 bg-black mr-1"></div>
+                                            <div class="h-1 w-1 bg-black mr-1"></div>
+                                            <div class="h-1 w-2 bg-black mr-1"></div>
+                                            <div class="h-1 w-1 bg-black mr-1"></div>
+                                            <div class="h-1 w-1 bg-black mr-1"></div>
+                                        </div>
+                                        <div class="text-xs text-center mt-1">7891234567890</div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-end">
+                                    <div class="text-xs">
+                                        <div>SKU: DELL-NB-001</div>
+                                        <div>Cor: Prata</div>
+                                    </div>
+                                    <div class="text-lg font-bold text-red-600">R$ 3.499,00</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <button class="flex-1 bg-primary text-white py-2 rounded-md flex items-center justify-center">
+                                <i class="fas fa-edit mr-2"></i>
+                                Editar Modelo
+                            </button>
+                            <button class="flex-1 bg-success text-white py-2 rounded-md flex items-center justify-center">
+                                <i class="fas fa-print mr-2"></i>
+                                Imprimir Teste
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Templates and Recent Activity -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Templates -->
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-semibold text-gray-800">Modelos de Etiqueta</h2>
+                            <button class="bg-primary text-white px-4 py-2 rounded-md flex items-center">
+                                <i class="fas fa-plus mr-2"></i>
+                                Novo Modelo
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="template-item p-3 border rounded-md flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-blue-100 flex items-center justify-center">
+                                        <i class="fas fa-tag text-blue-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">Etiqueta Preço 40x30mm</h3>
+                                        <p class="text-xs text-gray-500">Impressora térmica - ZPL</p>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button class="text-primary hover:text-blue-800">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="text-green-500 hover:text-green-800">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="template-item p-3 border rounded-md flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
+                                        <i class="fas fa-tag text-green-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">Etiqueta Produto A4</h3>
+                                        <p class="text-xs text-gray-500">96 etiquetas por folha</p>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button class="text-primary hover:text-blue-800">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="text-green-500 hover:text-green-800">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="template-item p-3 border rounded-md flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-purple-100 flex items-center justify-center">
+                                        <i class="fas fa-tag text-purple-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">Rabicho 95x12mm</h3>
+                                        <p class="text-xs text-gray-500">Para prateleiras</p>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button class="text-primary hover:text-blue-800">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="text-green-500 hover:text-green-800">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Atividade Recente</h2>
+                        <div class="space-y-4">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                        <i class="fas fa-print text-blue-500"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-900">Lote impresso</p>
+                                    <p class="text-sm text-gray-500">45 etiquetas do modelo "Preço 40x30mm"</p>
+                                    <p class="text-xs text-gray-400">Há 15 minutos</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                        <i class="fas fa-sync-alt text-green-500"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-900">Sincronização com API</p>
+                                    <p class="text-sm text-gray-500">Atualizados 23 produtos do eGestor</p>
+                                    <p class="text-xs text-gray-400">Há 2 horas</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                        <i class="fas fa-edit text-yellow-500"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-900">Modelo atualizado</p>
+                                    <p class="text-sm text-gray-500">"Etiqueta Produto A4" foi modificado</p>
+                                    <p class="text-xs text-gray-400">Hoje às 09:45</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                        <i class="fas fa-plus text-purple-500"></i>
+                                    </div>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-900">Novo modelo criado</p>
+                                    <p class="text-sm text-gray-500">"Rabicho 95x12mm" adicionado aos modelos</p>
+                                    <p class="text-xs text-gray-400">Ontem às 16:30</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Printers and API Status -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Printers -->
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Impressoras Configuradas</h2>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 border rounded-md">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-blue-100 flex items-center justify-center">
+                                        <i class="fas fa-print text-blue-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">Zebra ZD420</h3>
+                                        <p class="text-xs text-gray-500">Thermal - ZPL | 58mm</p>
+                                    </div>
+                                </div>
+                                <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Conectada</span>
+                            </div>
+                            
+                            <div class="flex items-center justify-between p-3 border rounded-md">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
+                                        <i class="fas fa-print text-green-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">Argox OS-214</h3>
+                                        <p class="text-xs text-gray-500">Thermal - PPLA | 80mm</p>
+                                    </div>
+                                </div>
+                                <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Conectada</span>
+                            </div>
+                            
+                            <div class="flex items-center justify-between p-3 border rounded-md">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-gray-100 flex items-center justify-center">
+                                        <i class="fas fa-print text-gray-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">HP LaserJet Pro</h3>
+                                        <p class="text-xs text-gray-500">A4 - PDF</p>
+                                    </div>
+                                </div>
+                                <span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Offline</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- API Integration -->
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-semibold text-gray-800">Integração com ERP</h2>
+                            <button class="bg-primary text-white px-4 py-2 rounded-md flex items-center">
+                                <i class="fas fa-sync-alt mr-2"></i>
+                                Sincronizar
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
+                                        <i class="fas fa-plug text-green-500"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-medium">eGestor</h3>
+                                        <p class="text-xs text-gray-500">Status da conexão</p>
+                                    </div>
+                                </div>
+                                <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Ativa</span>
+                            </div>
+                            
+                            <div class="bg-gray-50 p-4 rounded-md">
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <p class="text-gray-500">Produtos sincronizados</p>
+                                        <p class="font-medium">1,248</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500">Última sincronização</p>
+                                        <p class="font-medium">Hoje, 14:30</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500">Próxima sincronização</p>
+                                        <p class="font-medium">Automática (15min)</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-gray-500">Token API</p>
+                                        <p class="font-medium">Válido</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex space-x-2">
+                                <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-cog mr-2"></i>
+                                    Configurar API
+                                </button>
+                                <button class="flex-1 bg-success text-white py-2 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-download mr-2"></i>
+                                    Exportar Dados
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Gráfico de Etiquetas Impressas
+        const ctx = document.getElementById('labelsChart').getContext('2d');
+        const labelsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+                datasets: [
+                    {
+                        label: 'Etiquetas Térmicas',
+                        data: [320, 450, 380, 510, 420, 600, 550, 480, 520, 610, 580, 630],
+                        backgroundColor: '#3B82F6',
+                    },
+                    {
+                        label: 'Etiquetas A4',
+                        data: [120, 150, 180, 210, 190, 230, 250, 220, 240, 260, 280, 300],
+                        backgroundColor: '#10B981',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Quantidade de Etiquetas'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

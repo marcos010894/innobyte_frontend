@@ -1,0 +1,2027 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Innobyte - Sistema de Etiquetas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#1E293B',
+                        accent: '#F59E0B',
+                        success: '#10B981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        .dashboard-card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .preview-label {
+            border: 1px dashed #cbd5e1;
+            background: #f8fafc;
+        }
+        .template-item {
+            transition: all 0.2s ease;
+        }
+        .template-item:hover {
+            background-color: #f1f5f9;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .editor-area {
+            border: 1px dashed #cbd5e1;
+            background: #f8fafc;
+            position: relative;
+        }
+        .element {
+            position: absolute;
+            border: 1px solid #3B82F6;
+            background: rgba(59, 130, 246, 0.1);
+            cursor: move;
+            padding: 2px;
+        }
+        .element.selected {
+            border: 2px solid #F59E0B;
+            background: rgba(245, 158, 11, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 bg-white shadow-md">
+            <div class="p-4 border-b">
+                <h1 class="text-xl font-bold text-primary flex items-center">
+                    <i class="fas fa-tags mr-2"></i>
+                    Innobyte Etiquetas
+                </h1>
+                <p class="text-xs text-gray-500 mt-1">Sistema de emissão de etiquetas</p>
+            </div>
+            <nav class="mt-6">
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Principal</div>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="dashboard">
+                    <i class="fas fa-tachometer-alt mr-3"></i>
+                    Dashboard
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="editor">
+                    <i class="fas fa-edit mr-3"></i>
+                    Editor de Modelos
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="print">
+                    <i class="fas fa-print mr-3"></i>
+                    Impressão
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="api">
+                    <i class="fas fa-database mr-3"></i>
+                    Integração API
+                </a>
+                
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-6">Gestão</div>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="templates">
+                    <i class="fas fa-layer-group mr-3"></i>
+                    Modelos Salvos
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="history">
+                    <i class="fas fa-history mr-3"></i>
+                    Histórico
+                </a>
+                
+                <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-6">Configurações</div>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="settings">
+                    <i class="fas fa-cog mr-3"></i>
+                    Configurações
+                </a>
+                <a href="#" class="nav-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100" data-page="profile">
+                    <i class="fas fa-user-circle mr-3"></i>
+                    Perfil
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-white shadow-sm z-10">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <div class="flex items-center">
+                        <button class="text-gray-500 focus:outline-none lg:hidden">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div class="relative mx-4 lg:mx-0">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <i class="fas fa-search text-gray-500"></i>
+                            </span>
+                            <input class="w-32 pl-10 pr-4 rounded-md border border-gray-300 bg-gray-100 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent sm:w-64" type="text" placeholder="Buscar..." id="search-input">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center">
+                        <div class="relative">
+                            <button class="flex mx-4 text-gray-600 focus:outline-none">
+                                <i class="fas fa-bell text-xl"></i>
+                                <span class="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
+                            </button>
+                        </div>
+                        
+                        <div class="relative">
+                            <button class="relative flex items-center focus:outline-none">
+                                <img class="h-8 w-8 rounded-full object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80" alt="User">
+                                <span class="mx-2 text-gray-700">Christian</span>
+                                <i class="fas fa-chevron-down text-gray-500"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="flex-1 overflow-y-auto p-6">
+                <!-- Dashboard Page -->
+                <div id="dashboard" class="page active">
+                    <!-- Page Title -->
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Dashboard de Etiquetas</h1>
+                        <p class="text-gray-600">Sistema de emissão de etiquetas com integração API</p>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-blue-100 text-primary">
+                                    <i class="fas fa-layer-group text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Modelos de Etiqueta</p>
+                                    <h3 class="text-2xl font-bold text-gray-800">12</h3>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <span class="text-green-500 text-sm font-medium">
+                                    <i class="fas fa-plus mr-1"></i>2 novos
+                                </span>
+                                <span class="text-gray-500 text-sm">este mês</span>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-green-100 text-success">
+                                    <i class="fas fa-print text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Etiquetas Impressas</p>
+                                    <h3 class="text-2xl font-bold text-gray-800">3,842</h3>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <span class="text-green-500 text-sm font-medium">
+                                    <i class="fas fa-arrow-up mr-1"></i>18.5%
+                                </span>
+                                <span class="text-gray-500 text-sm">vs último mês</span>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-yellow-100 text-yellow-500">
+                                    <i class="fas fa-barcode text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Produtos no ERP</p>
+                                    <h3 class="text-2xl font-bold text-gray-800">1,248</h3>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <span class="text-green-500 text-sm font-medium">
+                                    <i class="fas fa-sync-alt mr-1"></i>Sincronizado
+                                </span>
+                                <span class="text-gray-500 text-sm">há 15 min</span>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-purple-100 text-purple-500">
+                                    <i class="fas fa-plug text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Conexão API</p>
+                                    <h3 class="text-2xl font-bold text-gray-800">Ativa</h3>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <span class="text-green-500 text-sm font-medium">
+                                    <i class="fas fa-check-circle mr-1"></i>eGestor
+                                </span>
+                                <span class="text-gray-500 text-sm">Integração OK</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts and Editor Preview -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Chart -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold text-gray-800">Etiquetas Impressas por Tipo</h2>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 text-xs bg-blue-100 text-primary rounded-md">Mensal</button>
+                                    <button class="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-md">Trimestral</button>
+                                </div>
+                            </div>
+                            <div class="h-80">
+                                <canvas id="labelsChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Editor Preview -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Pré-visualização do Modelo</h2>
+                            <div class="border rounded-lg p-4 bg-gray-50 mb-4">
+                                <div class="flex justify-between mb-2">
+                                    <span class="text-sm font-medium">Modelo: <span class="text-primary">Etiqueta Preço 40x30mm</span></span>
+                                    <span class="text-sm text-gray-500">Impressora Térmica</span>
+                                </div>
+                                
+                                <!-- Preview Area -->
+                                <div class="preview-label mx-auto p-4 rounded" style="width: 240px; height: 180px;">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="text-xs font-bold">INNOBYTE</div>
+                                        <div class="text-xs bg-yellow-100 px-1 rounded">DESTAQUE</div>
+                                    </div>
+                                    <div class="text-center mb-2">
+                                        <div class="text-sm font-semibold">Notebook Dell i7</div>
+                                        <div class="text-xs text-gray-600">15.6" 16GB 512SSD</div>
+                                    </div>
+                                    <div class="flex justify-center mb-2">
+                                        <div class="bg-white p-1 rounded border inline-block">
+                                            <!-- Barcode representation -->
+                                            <div class="flex items-center justify-center h-8">
+                                                <div class="h-1 w-1 bg-black mr-1"></div>
+                                                <div class="h-1 w-1 bg-black mr-1"></div>
+                                                <div class="h-1 w-3 bg-black mr-1"></div>
+                                                <div class="h-1 w-1 bg-black mr-1"></div>
+                                                <div class="h-1 w-2 bg-black mr-1"></div>
+                                                <div class="h-1 w-1 bg-black mr-1"></div>
+                                                <div class="h-1 w-1 bg-black mr-1"></div>
+                                            </div>
+                                            <div class="text-xs text-center mt-1">7891234567890</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-end">
+                                        <div class="text-xs">
+                                            <div>SKU: DELL-NB-001</div>
+                                            <div>Cor: Prata</div>
+                                        </div>
+                                        <div class="text-lg font-bold text-red-600">R$ 3.499,00</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex space-x-2">
+                                <button class="flex-1 bg-primary text-white py-2 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-edit mr-2"></i>
+                                    Editar Modelo
+                                </button>
+                                <button class="flex-1 bg-success text-white py-2 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-print mr-2"></i>
+                                    Imprimir Teste
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Templates and Recent Activity -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Templates -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold text-gray-800">Modelos de Etiqueta</h2>
+                                <button class="bg-primary text-white px-4 py-2 rounded-md flex items-center">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    Novo Modelo
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="template-item p-3 border rounded-md flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-blue-100 flex items-center justify-center">
+                                            <i class="fas fa-tag text-blue-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">Etiqueta Preço 40x30mm</h3>
+                                            <p class="text-xs text-gray-500">Impressora térmica - ZPL</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button class="text-primary hover:text-blue-800">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-800">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="template-item p-3 border rounded-md flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
+                                            <i class="fas fa-tag text-green-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">Etiqueta Produto A4</h3>
+                                            <p class="text-xs text-gray-500">96 etiquetas por folha</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button class="text-primary hover:text-blue-800">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-800">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="template-item p-3 border rounded-md flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-purple-100 flex items-center justify-center">
+                                            <i class="fas fa-tag text-purple-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">Rabicho 95x12mm</h3>
+                                            <p class="text-xs text-gray-500">Para prateleiras</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button class="text-primary hover:text-blue-800">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-800">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Atividade Recente</h2>
+                            <div class="space-y-4">
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0">
+                                        <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <i class="fas fa-print text-blue-500"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-900">Lote impresso</p>
+                                        <p class="text-sm text-gray-500">45 etiquetas do modelo "Preço 40x30mm"</p>
+                                        <p class="text-xs text-gray-400">Há 15 minutos</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0">
+                                        <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                            <i class="fas fa-sync-alt text-green-500"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-900">Sincronização com API</p>
+                                        <p class="text-sm text-gray-500">Atualizados 23 produtos do eGestor</p>
+                                        <p class="text-xs text-gray-400">Há 2 horas</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0">
+                                        <div class="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                            <i class="fas fa-edit text-yellow-500"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-900">Modelo atualizado</p>
+                                        <p class="text-sm text-gray-500">"Etiqueta Produto A4" foi modificado</p>
+                                        <p class="text-xs text-gray-400">Hoje às 09:45</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0">
+                                        <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                            <i class="fas fa-plus text-purple-500"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-4">
+                                        <p class="text-sm font-medium text-gray-900">Novo modelo criado</p>
+                                        <p class="text-sm text-gray-500">"Rabicho 95x12mm" adicionado aos modelos</p>
+                                        <p class="text-xs text-gray-400">Ontem às 16:30</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Printers and API Status -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Printers -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Impressoras Configuradas</h2>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between p-3 border rounded-md">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-blue-100 flex items-center justify-center">
+                                            <i class="fas fa-print text-blue-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">Zebra ZD420</h3>
+                                            <p class="text-xs text-gray-500">Thermal - ZPL | 58mm</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Conectada</span>
+                                </div>
+                                
+                                <div class="flex items-center justify-between p-3 border rounded-md">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
+                                            <i class="fas fa-print text-green-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">Argox OS-214</h3>
+                                            <p class="text-xs text-gray-500">Thermal - PPLA | 80mm</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Conectada</span>
+                                </div>
+                                
+                                <div class="flex items-center justify-between p-3 border rounded-md">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-gray-100 flex items-center justify-center">
+                                            <i class="fas fa-print text-gray-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">HP LaserJet Pro</h3>
+                                            <p class="text-xs text-gray-500">A4 - PDF</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Offline</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- API Integration -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold text-gray-800">Integração com ERP</h2>
+                                <button class="bg-primary text-white px-4 py-2 rounded-md flex items-center">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    Sincronizar
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
+                                            <i class="fas fa-plug text-green-500"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium">eGestor</h3>
+                                            <p class="text-xs text-gray-500">Status da conexão</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Ativa</span>
+                                </div>
+                                
+                                <div class="bg-gray-50 p-4 rounded-md">
+                                    <div class="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <p class="text-gray-500">Produtos sincronizados</p>
+                                            <p class="font-medium">1,248</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500">Última sincronização</p>
+                                            <p class="font-medium">Hoje, 14:30</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500">Próxima sincronização</p>
+                                            <p class="font-medium">Automática (15min)</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-gray-500">Token API</p>
+                                            <p class="font-medium">Válido</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-2">
+                                    <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md flex items-center justify-center">
+                                        <i class="fas fa-cog mr-2"></i>
+                                        Configurar API
+                                    </button>
+                                    <button class="flex-1 bg-success text-white py-2 rounded-md flex items-center justify-center">
+                                        <i class="fas fa-download mr-2"></i>
+                                        Exportar Dados
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editor de Modelos Page -->
+                <div id="editor" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Editor de Modelos de Etiqueta</h1>
+                        <p class="text-gray-600">Crie e edite modelos de etiquetas personalizados</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Configurações do Modelo -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-1">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Configurações do Modelo</h2>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nome do Modelo</label>
+                                    <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="Etiqueta Preço 40x30mm">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Impressora</label>
+                                    <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option>Térmica (ZPL)</option>
+                                        <option>Térmica (EPL)</option>
+                                        <option>A4 (PDF)</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Largura (mm)</label>
+                                        <input type="number" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="40">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Altura (mm)</label>
+                                        <input type="number" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="30">
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Margem Horizontal</label>
+                                        <input type="number" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="2">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Margem Vertical</label>
+                                        <input type="number" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="2">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Orientação</label>
+                                    <div class="flex space-x-4 mt-2">
+                                        <label class="inline-flex items-center">
+                                            <input type="radio" class="form-radio text-primary" name="orientation" checked>
+                                            <span class="ml-2">Retrato</span>
+                                        </label>
+                                        <label class="inline-flex items-center">
+                                            <input type="radio" class="form-radio text-primary" name="orientation">
+                                            <span class="ml-2">Paisagem</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="pt-4 border-t">
+                                    <h3 class="text-md font-medium text-gray-800 mb-2">Elementos Disponíveis</h3>
+                                    <div class="space-y-2">
+                                        <button class="add-element w-full text-left px-3 py-2 bg-gray-100 rounded-md flex items-center" data-type="text">
+                                            <i class="fas fa-font mr-2 text-gray-600"></i>
+                                            Texto
+                                        </button>
+                                        <button class="add-element w-full text-left px-3 py-2 bg-gray-100 rounded-md flex items-center" data-type="barcode">
+                                            <i class="fas fa-barcode mr-2 text-gray-600"></i>
+                                            Código de Barras
+                                        </button>
+                                        <button class="add-element w-full text-left px-3 py-2 bg-gray-100 rounded-md flex items-center" data-type="qrcode">
+                                            <i class="fas fa-qrcode mr-2 text-gray-600"></i>
+                                            QR Code
+                                        </button>
+                                        <button class="add-element w-full text-left px-3 py-2 bg-gray-100 rounded-md flex items-center" data-type="image">
+                                            <i class="fas fa-image mr-2 text-gray-600"></i>
+                                            Imagem/Logo
+                                        </button>
+                                        <button class="add-element w-full text-left px-3 py-2 bg-gray-100 rounded-md flex items-center" data-type="line">
+                                            <i class="fas fa-minus mr-2 text-gray-600"></i>
+                                            Linha
+                                        </button>
+                                        <button class="add-element w-full text-left px-3 py-2 bg-gray-100 rounded-md flex items-center" data-type="rectangle">
+                                            <i class="fas fa-square mr-2 text-gray-600"></i>
+                                            Retângulo
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Área de Edição -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-2">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold text-gray-800">Área de Edição</h2>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md">
+                                        <i class="fas fa-undo mr-1"></i>Desfazer
+                                    </button>
+                                    <button class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md">
+                                        <i class="fas fa-redo mr-1"></i>Refazer
+                                    </button>
+                                    <button class="px-3 py-1 text-xs bg-primary text-white rounded-md">
+                                        <i class="fas fa-eye mr-1"></i>Pré-visualizar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="editor-area mx-auto rounded-md" style="width: 400px; height: 300px;">
+                                <!-- Elementos posicionados serão adicionados aqui via JavaScript -->
+                                <div class="element" style="left: 10px; top: 10px; width: 120px; height: 20px;" data-type="text">
+                                    Nome do Produto
+                                </div>
+                                <div class="element" style="left: 10px; top: 40px; width: 80px; height: 40px;" data-type="barcode">
+                                    Código de Barras
+                                </div>
+                                <div class="element" style="left: 200px; top: 10px; width: 80px; height: 20px;" data-type="text">
+                                    R$ 99,90
+                                </div>
+                                <div class="element" style="left: 200px; top: 40px; width: 60px; height: 20px;" data-type="text">
+                                    SKU: 12345
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6 grid grid-cols-2 gap-4">
+                                <button class="bg-gray-100 text-gray-700 py-2 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-times mr-2"></i>
+                                    Cancelar
+                                </button>
+                                <button class="bg-primary text-white py-2 rounded-md flex items-center justify-center">
+                                    <i class="fas fa-save mr-2"></i>
+                                    Salvar Modelo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Impressão Page -->
+                <div id="print" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Impressão de Etiquetas</h1>
+                        <p class="text-gray-600">Selecione produtos e imprima etiquetas em lote</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Configurações de Impressão -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-1">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Configurações de Impressão</h2>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Modelo de Etiqueta</label>
+                                    <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option>Etiqueta Preço 40x30mm</option>
+                                        <option>Etiqueta Produto A4</option>
+                                        <option>Rabicho 95x12mm</option>
+                                        <option>4 Colunas 20x15mm</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Impressora</label>
+                                    <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option>Zebra ZD420 (Conectada)</option>
+                                        <option>Argox OS-214 (Conectada)</option>
+                                        <option>HP LaserJet Pro (Offline)</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Quantidade de Cópias</label>
+                                    <input type="number" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="1" min="1">
+                                </div>
+                                
+                                <div class="pt-4 border-t">
+                                    <h3 class="text-md font-medium text-gray-800 mb-2">Filtros de Produtos</h3>
+                                    
+                                    <div class="mb-3">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                                        <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option>Todas as categorias</option>
+                                            <option>Eletrônicos</option>
+                                            <option>Informática</option>
+                                            <option>Móveis</option>
+                                            <option>Livros</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Localização</label>
+                                        <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option>Todas as localizações</option>
+                                            <option>Armazém A</option>
+                                            <option>Armazém B</option>
+                                            <option>Loja Centro</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="flex space-x-2">
+                                        <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md text-sm">
+                                            Limpar Filtros
+                                        </button>
+                                        <button class="flex-1 bg-primary text-white py-2 rounded-md text-sm">
+                                            Aplicar Filtros
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="pt-4 border-t">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <h3 class="text-md font-medium text-gray-800">Itens Selecionados</h3>
+                                        <span class="text-sm text-gray-500">3 produtos</span>
+                                    </div>
+                                    
+                                    <div class="space-y-2 max-h-60 overflow-y-auto">
+                                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div class="text-sm">Notebook Dell i7</div>
+                                            <div class="flex items-center">
+                                                <input type="number" class="w-12 text-center border rounded py-1" value="1" min="1">
+                                                <button class="ml-2 text-red-500">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div class="text-sm">Mouse Sem Fio</div>
+                                            <div class="flex items-center">
+                                                <input type="number" class="w-12 text-center border rounded py-1" value="5" min="1">
+                                                <button class="ml-2 text-red-500">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div class="text-sm">Teclado Mecânico</div>
+                                            <div class="flex items-center">
+                                                <input type="number" class="w-12 text-center border rounded py-1" value="2" min="1">
+                                                <button class="ml-2 text-red-500">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-4 flex space-x-2">
+                                        <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md text-sm">
+                                            Limpar Tudo
+                                        </button>
+                                        <button class="flex-1 bg-success text-white py-2 rounded-md text-sm flex items-center justify-center">
+                                            <i class="fas fa-print mr-2"></i>
+                                            Imprimir
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lista de Produtos -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-2">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-lg font-semibold text-gray-800">Produtos para Impressão</h2>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md">
+                                        <i class="fas fa-sync-alt mr-1"></i>Atualizar
+                                    </button>
+                                    <button class="px-3 py-1 text-xs bg-primary text-white rounded-md">
+                                        <i class="fas fa-download mr-1"></i>Exportar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary">
+                                            </th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary">
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-md flex items-center justify-center">
+                                                        <i class="fas fa-laptop text-blue-500"></i>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <div class="text-sm font-medium text-gray-900">Notebook Dell i7</div>
+                                                        <div class="text-sm text-gray-500">15.6" 16GB 512SSD</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">7891234567890</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">15</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">R$ 3.499,00</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                                <button class="text-primary hover:text-blue-800 mr-3">
+                                                    <i class="fas fa-plus"></i> Adicionar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" checked>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0 h-10 w-10 bg-green-100 rounded-md flex items-center justify-center">
+                                                        <i class="fas fa-mouse text-green-500"></i>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <div class="text-sm font-medium text-gray-900">Mouse Sem Fio</div>
+                                                        <div class="text-sm text-gray-500">Optico, USB</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">7891234567891</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">42</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">R$ 49,90</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                                <button class="text-primary hover:text-blue-800 mr-3">
+                                                    <i class="fas fa-plus"></i> Adicionar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" checked>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0 h-10 w-10 bg-purple-100 rounded-md flex items-center justify-center">
+                                                        <i class="fas fa-keyboard text-purple-500"></i>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <div class="text-sm font-medium text-gray-900">Teclado Mecânico</div>
+                                                        <div class="text-sm text-gray-500">RGB, Switch Blue</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">7891234567892</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">8</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">R$ 299,00</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                                <button class="text-primary hover:text-blue-800 mr-3">
+                                                    <i class="fas fa-plus"></i> Adicionar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary">
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap">
+                                                <div class="flex items-center">
+                                                    <div class="flex-shrink-0 h-10 w-10 bg-yellow-100 rounded-md flex items-center justify-center">
+                                                        <i class="fas fa-headphones text-yellow-500"></i>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <div class="text-sm font-medium text-gray-900">Fone de Ouvido</div>
+                                                        <div class="text-sm text-gray-500">Bluetooth, Cancelamento de Ruído</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">7891234567893</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">23</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">R$ 399,00</td>
+                                            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                                <button class="text-primary hover:text-blue-800 mr-3">
+                                                    <i class="fas fa-plus"></i> Adicionar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="mt-4 flex justify-between items-center">
+                                <div class="text-sm text-gray-500">Mostrando 4 de 1248 produtos</div>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md">Anterior</button>
+                                    <button class="px-3 py-1 text-sm bg-primary text-white rounded-md">Próxima</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Integração API Page -->
+                <div id="api" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Integração com ERP</h1>
+                        <p class="text-gray-600">Configure e gerencie a integração com sistemas ERP</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Configuração da API -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Configuração da API</h2>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Sistema ERP</label>
+                                    <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option>eGestor</option>
+                                        <option>GestãoClick</option>
+                                        <option>Outro sistema</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">URL da API</label>
+                                    <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="https://api.egestor.com.br">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Token de Acesso</label>
+                                    <div class="flex">
+                                        <input type="password" class="w-full rounded-l-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                                        <button class="bg-gray-100 text-gray-700 px-3 rounded-r-md border border-l-0 border-gray-300">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">ID da Empresa</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="12345">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="innobyte">
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center">
+                                    <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="auto-sync" checked>
+                                    <label for="auto-sync" class="ml-2 text-sm text-gray-700">Sincronização automática a cada 15 minutos</label>
+                                </div>
+                                
+                                <div class="pt-4 border-t flex space-x-2">
+                                    <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md">
+                                        Testar Conexão
+                                    </button>
+                                    <button class="flex-1 bg-primary text-white py-2 rounded-md">
+                                        Salvar Configurações
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status e Estatísticas -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Status e Estatísticas</h2>
+                            
+                            <div class="space-y-6">
+                                <div class="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                            <i class="fas fa-check text-green-500"></i>
+                                        </div>
+                                        <div class="ml-4">
+                                            <h3 class="text-sm font-medium text-gray-800">Conexão Ativa</h3>
+                                            <p class="text-xs text-gray-600">Integração com eGestor</p>
+                                        </div>
+                                    </div>
+                                    <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Online</span>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="bg-gray-50 p-4 rounded-lg">
+                                        <p class="text-sm text-gray-500">Produtos Sincronizados</p>
+                                        <p class="text-2xl font-bold text-gray-800">1,248</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-lg">
+                                        <p class="text-sm text-gray-500">Categorias</p>
+                                        <p class="text-2xl font-bold text-gray-800">24</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-lg">
+                                        <p class="text-sm text-gray-500">Última Sincronização</p>
+                                        <p class="text-lg font-bold text-gray-800">14:30</p>
+                                    </div>
+                                    <div class="bg-gray-50 p-4 rounded-lg">
+                                        <p class="text-sm text-gray-500">Próxima Sincronização</p>
+                                        <p class="text-lg font-bold text-gray-800">14:45</p>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h3 class="text-md font-medium text-gray-800 mb-2">Histórico de Sincronização</h3>
+                                    <div class="space-y-2">
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span>14:30 - Sincronização automática</span>
+                                            <span class="text-green-500">+23 produtos</span>
+                                        </div>
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span>14:15 - Sincronização automática</span>
+                                            <span class="text-green-500">+12 produtos</span>
+                                        </div>
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span>14:00 - Sincronização automática</span>
+                                            <span class="text-green-500">+8 produtos</span>
+                                        </div>
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span>13:45 - Sincronização manual</span>
+                                            <span class="text-green-500">+45 produtos</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-2">
+                                    <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded-md flex items-center justify-center">
+                                        <i class="fas fa-sync-alt mr-2"></i>
+                                        Sincronizar Agora
+                                    </button>
+                                    <button class="flex-1 bg-success text-white py-2 rounded-md flex items-center justify-center">
+                                        <i class="fas fa-download mr-2"></i>
+                                        Exportar Log
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mapeamento de Campos -->
+                    <div class="dashboard-card bg-white rounded-lg p-6 mt-6">
+                        <h2 class="text-lg font-semibold text-gray-800 mb-4">Mapeamento de Campos</h2>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campo no Sistema</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Campo no ERP</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Código de Barras</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>codigo_barras</option>
+                                                <option>ean</option>
+                                                <option>gtin</option>
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Texto</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-save"></i> Salvar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Nome do Produto</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>nome</option>
+                                                <option>descricao</option>
+                                                <option>produto</option>
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Texto</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-save"></i> Salvar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Preço de Venda</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>preco_venda</option>
+                                                <option>preco</option>
+                                                <option>valor</option>
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Número</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-save"></i> Salvar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Estoque Atual</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-1 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>estoque</option>
+                                                <option>quantidade</option>
+                                                <option>saldo</option>
+                                            </select>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Número</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-save"></i> Salvar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modelos Salvos Page -->
+                <div id="templates" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Modelos de Etiqueta Salvos</h1>
+                        <p class="text-gray-600">Gerencie seus modelos de etiqueta</p>
+                    </div>
+
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <div class="flex space-x-2">
+                                <button class="px-4 py-2 bg-primary text-white rounded-md flex items-center">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    Novo Modelo
+                                </button>
+                                <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md flex items-center">
+                                    <i class="fas fa-upload mr-2"></i>
+                                    Importar
+                                </button>
+                            </div>
+                            <div class="flex space-x-2">
+                                <div class="relative">
+                                    <input type="text" class="pl-10 pr-4 rounded-md border border-gray-300 bg-gray-100 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Buscar modelo...">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <i class="fas fa-search text-gray-500"></i>
+                                    </span>
+                                </div>
+                                <select class="rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option>Todos os tipos</option>
+                                    <option>Térmica</option>
+                                    <option>A4</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <!-- Template Card -->
+                            <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                <div class="p-4 border-b">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-medium text-gray-800">Etiqueta Preço 40x30mm</h3>
+                                            <p class="text-xs text-gray-500">Impressora térmica - ZPL</p>
+                                        </div>
+                                        <div class="flex space-x-1">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="text-green-500 hover:text-green-800">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-gray-50 flex justify-center">
+                                    <div class="preview-label p-3 rounded" style="width: 160px; height: 120px;">
+                                        <div class="text-center mb-1">
+                                            <div class="text-xs font-semibold">Produto</div>
+                                        </div>
+                                        <div class="flex justify-center mb-1">
+                                            <div class="bg-white p-1 rounded border inline-block">
+                                                <div class="flex items-center justify-center h-6">
+                                                    <div class="h-1 w-1 bg-black mr-1"></div>
+                                                    <div class="h-1 w-1 bg-black mr-1"></div>
+                                                    <div class="h-1 w-2 bg-black mr-1"></div>
+                                                </div>
+                                                <div class="text-xs text-center">COD</div>
+                                            </div>
+                                        </div>
+                                        <div class="text-center text-xs font-bold">R$ 0,00</div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-white border-t flex justify-between">
+                                    <span class="text-xs text-gray-500">Criado: 15/05/2023</span>
+                                    <button class="text-red-500 hover:text-red-800 text-xs">
+                                        <i class="fas fa-trash"></i> Excluir
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Template Card -->
+                            <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                <div class="p-4 border-b">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-medium text-gray-800">Etiqueta Produto A4</h3>
+                                            <p class="text-xs text-gray-500">96 etiquetas por folha</p>
+                                        </div>
+                                        <div class="flex space-x-1">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="text-green-500 hover:text-green-800">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-gray-50 flex justify-center">
+                                    <div class="preview-label p-2 rounded" style="width: 120px; height: 80px;">
+                                        <div class="text-center">
+                                            <div class="text-xs font-semibold">Nome</div>
+                                            <div class="text-xs">R$ 0,00</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-white border-t flex justify-between">
+                                    <span class="text-xs text-gray-500">Criado: 10/05/2023</span>
+                                    <button class="text-red-500 hover:text-red-800 text-xs">
+                                        <i class="fas fa-trash"></i> Excluir
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Template Card -->
+                            <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                <div class="p-4 border-b">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-medium text-gray-800">Rabicho 95x12mm</h3>
+                                            <p class="text-xs text-gray-500">Para prateleiras</p>
+                                        </div>
+                                        <div class="flex space-x-1">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="text-green-500 hover:text-green-800">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-gray-50 flex justify-center">
+                                    <div class="preview-label p-1 rounded" style="width: 190px; height: 24px;">
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span>Produto</span>
+                                            <span class="font-bold">R$ 0,00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-white border-t flex justify-between">
+                                    <span class="text-xs text-gray-500">Criado: 05/05/2023</span>
+                                    <button class="text-red-500 hover:text-red-800 text-xs">
+                                        <i class="fas fa-trash"></i> Excluir
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Template Card -->
+                            <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                <div class="p-4 border-b">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-medium text-gray-800">4 Colunas 20x15mm</h3>
+                                            <p class="text-xs text-gray-500">Impressora térmica - EPL</p>
+                                        </div>
+                                        <div class="flex space-x-1">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="text-green-500 hover:text-green-800">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-gray-50 flex justify-center">
+                                    <div class="preview-label p-1 rounded" style="width: 80px; height: 60px;">
+                                        <div class="text-center">
+                                            <div class="text-xs">Prod</div>
+                                            <div class="text-xs font-bold">R$ 0</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-white border-t flex justify-between">
+                                    <span class="text-xs text-gray-500">Criado: 01/05/2023</span>
+                                    <button class="text-red-500 hover:text-red-800 text-xs">
+                                        <i class="fas fa-trash"></i> Excluir
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Template Card -->
+                            <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                <div class="p-4 border-b">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-medium text-gray-800">Etiqueta Promocional</h3>
+                                            <p class="text-xs text-gray-500">A4 com destaque</p>
+                                        </div>
+                                        <div class="flex space-x-1">
+                                            <button class="text-primary hover:text-blue-800">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="text-green-500 hover:text-green-800">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 bg-gray-50 flex justify-center">
+                                    <div class="preview-label p-2 rounded" style="width: 140px; height: 100px;">
+                                        <div class="text-center mb-1">
+                                            <div class="text-xs font-semibold bg-yellow-100 px-1 rounded">PROMOÇÃO</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="text-xs">Produto</div>
+                                            <div class="text-xs font-bold line-through">R$ 100,00</div>
+                                            <div class="text-xs font-bold text-red-600">R$ 79,90</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-3 bg-white border-t flex justify-between">
+                                    <span class="text-xs text-gray-500">Criado: 28/04/2023</span>
+                                    <button class="text-red-500 hover:text-red-800 text-xs">
+                                        <i class="fas fa-trash"></i> Excluir
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- New Template Card -->
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-6 hover:border-primary transition-colors cursor-pointer">
+                                <div class="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                                    <i class="fas fa-plus text-gray-400 text-xl"></i>
+                                </div>
+                                <h3 class="font-medium text-gray-700">Criar Novo Modelo</h3>
+                                <p class="text-xs text-gray-500 mt-1 text-center">Clique para criar um novo modelo de etiqueta</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex justify-between items-center">
+                            <div class="text-sm text-gray-500">Mostrando 5 de 12 modelos</div>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md">Anterior</button>
+                                <button class="px-3 py-1 text-sm bg-primary text-white rounded-md">Próxima</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Histórico Page -->
+                <div id="history" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Histórico de Impressões</h1>
+                        <p class="text-gray-600">Registro de todas as etiquetas impressas</p>
+                    </div>
+
+                    <div class="dashboard-card bg-white rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <div class="flex space-x-2">
+                                <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md flex items-center">
+                                    <i class="fas fa-download mr-2"></i>
+                                    Exportar
+                                </button>
+                                <button class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md flex items-center">
+                                    <i class="fas fa-filter mr-2"></i>
+                                    Filtrar
+                                </button>
+                            </div>
+                            <div class="flex space-x-2">
+                                <div class="relative">
+                                    <input type="text" class="pl-10 pr-4 rounded-md border border-gray-300 bg-gray-100 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Buscar no histórico...">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <i class="fas fa-search text-gray-500"></i>
+                                    </span>
+                                </div>
+                                <select class="rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option>Últimos 7 dias</option>
+                                    <option>Hoje</option>
+                                    <option>Últimos 30 dias</option>
+                                    <option>Personalizado</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data/Hora</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuário</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modelo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Impressora</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">15/06/2023 14:30</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Christian</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Etiqueta Preço 40x30mm</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Notebook Dell i7</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">45</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Zebra ZD420</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800 mr-3">
+                                                <i class="fas fa-redo"></i> Repetir
+                                            </button>
+                                            <button class="text-gray-500 hover:text-gray-800">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">15/06/2023 11:15</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Maria</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Etiqueta Produto A4</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Mouse Sem Fio</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">120</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">HP LaserJet Pro</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800 mr-3">
+                                                <i class="fas fa-redo"></i> Repetir
+                                            </button>
+                                            <button class="text-gray-500 hover:text-gray-800">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">14/06/2023 16:45</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Christian</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Rabicho 95x12mm</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Teclado Mecânico</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">30</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Argox OS-214</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800 mr-3">
+                                                <i class="fas fa-redo"></i> Repetir
+                                            </button>
+                                            <button class="text-gray-500 hover:text-gray-800">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">14/06/2023 09:20</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">João</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">4 Colunas 20x15mm</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Fone de Ouvido</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">80</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Zebra ZD420</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800 mr-3">
+                                                <i class="fas fa-redo"></i> Repetir
+                                            </button>
+                                            <button class="text-gray-500 hover:text-gray-800">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">13/06/2023 14:10</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Christian</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">Etiqueta Promocional</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">Monitor 24"</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">25</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">HP LaserJet Pro</td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-primary hover:text-blue-800 mr-3">
+                                                <i class="fas fa-redo"></i> Repetir
+                                            </button>
+                                            <button class="text-gray-500 hover:text-gray-800">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-6 flex justify-between items-center">
+                            <div class="text-sm text-gray-500">Mostrando 5 de 128 impressões</div>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md">Anterior</button>
+                                <button class="px-3 py-1 text-sm bg-primary text-white rounded-md">Próxima</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configurações Page -->
+                <div id="settings" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Configurações do Sistema</h1>
+                        <p class="text-gray-600">Configure as preferências do sistema de etiquetas</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Menu de Configurações -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-1">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Categorias</h2>
+                            <nav class="space-y-2">
+                                <a href="#" class="config-nav block px-3 py-2 bg-blue-50 text-primary rounded-md font-medium" data-config="general">
+                                    <i class="fas fa-cog mr-2"></i>Geral
+                                </a>
+                                <a href="#" class="config-nav block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md" data-config="printers">
+                                    <i class="fas fa-print mr-2"></i>Impressoras
+                                </a>
+                                <a href="#" class="config-nav block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md" data-config="integration">
+                                    <i class="fas fa-plug mr-2"></i>Integração
+                                </a>
+                                <a href="#" class="config-nav block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md" data-config="users">
+                                    <i class="fas fa-users mr-2"></i>Usuários
+                                </a>
+                                <a href="#" class="config-nav block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md" data-config="backup">
+                                    <i class="fas fa-database mr-2"></i>Backup
+                                </a>
+                                <a href="#" class="config-nav block px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md" data-config="security">
+                                    <i class="fas fa-shield-alt mr-2"></i>Segurança
+                                </a>
+                            </nav>
+                        </div>
+
+                        <!-- Conteúdo das Configurações -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-2">
+                            <!-- Configurações Gerais -->
+                            <div id="general-config" class="config-content">
+                                <h2 class="text-lg font-semibold text-gray-800 mb-4">Configurações Gerais</h2>
+                                
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome da Empresa</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="Innobyte Soluções">
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Moeda Padrão</label>
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>Real Brasileiro (R$)</option>
+                                                <option>Dólar Americano (US$)</option>
+                                                <option>Euro (€)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Formato de Data</label>
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>DD/MM/AAAA</option>
+                                                <option>MM/DD/AAAA</option>
+                                                <option>AAAA-MM-DD</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Fuso Horário</label>
+                                        <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option>America/Sao_Paulo (Brasília)</option>
+                                            <option>America/New_York</option>
+                                            <option>Europe/London</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="notifications" checked>
+                                        <label for="notifications" class="ml-2 text-sm text-gray-700">Receber notificações por e-mail</label>
+                                    </div>
+                                    
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="auto-update" checked>
+                                        <label for="auto-update" class="ml-2 text-sm text-gray-700">Atualizações automáticas</label>
+                                    </div>
+                                    
+                                    <div class="pt-4 border-t flex justify-end">
+                                        <button class="bg-primary text-white px-4 py-2 rounded-md">
+                                            Salvar Configurações
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Configurações de Impressoras -->
+                            <div id="printers-config" class="config-content hidden">
+                                <h2 class="text-lg font-semibold text-gray-800 mb-4">Configurações de Impressoras</h2>
+                                
+                                <div class="space-y-6">
+                                    <div>
+                                        <h3 class="text-md font-medium text-gray-800 mb-2">Impressora Padrão</h3>
+                                        <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option>Zebra ZD420</option>
+                                            <option>Argox OS-214</option>
+                                            <option>HP LaserJet Pro</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <h3 class="text-md font-medium text-gray-800 mb-2">Tipo de Impressão Padrão</h3>
+                                        <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option>Direta (ZPL/EPL)</option>
+                                            <option>PDF</option>
+                                            <option>Ambas</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Resolução (DPI)</label>
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>203 DPI</option>
+                                                <option>300 DPI</option>
+                                                <option>600 DPI</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Velocidade de Impressão</label>
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>2 ips</option>
+                                                <option>4 ips</option>
+                                                <option>6 ips</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-center">
+                                        <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="preview-before-print" checked>
+                                        <label for="preview-before-print" class="ml-2 text-sm text-gray-700">Sempre mostrar pré-visualização antes de imprimir</label>
+                                    </div>
+                                    
+                                    <div class="pt-4 border-t flex justify-end">
+                                        <button class="bg-primary text-white px-4 py-2 rounded-md">
+                                            Salvar Configurações
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Configurações de Integração -->
+                            <div id="integration-config" class="config-content hidden">
+                                <h2 class="text-lg font-semibold text-gray-800 mb-4">Configurações de Integração</h2>
+                                
+                                <div class="space-y-6">
+                                    <div>
+                                        <h3 class="text-md font-medium text-gray-800 mb-2">Sincronização Automática</h3>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="auto-sync-config" checked>
+                                            <label for="auto-sync-config" class="ml-2 text-sm text-gray-700">Habilitar sincronização automática com ERP</label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Intervalo de Sincronização</label>
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>5 minutos</option>
+                                                <option>15 minutos</option>
+                                                <option>30 minutos</option>
+                                                <option>1 hora</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Tempo Máximo de Espera</label>
+                                            <select class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                                <option>30 segundos</option>
+                                                <option>1 minuto</option>
+                                                <option>2 minutos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <h3 class="text-md font-medium text-gray-800 mb-2">Campos para Sincronização</h3>
+                                        <div class="space-y-2">
+                                            <div class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="sync-products" checked>
+                                                <label for="sync-products" class="ml-2 text-sm text-gray-700">Produtos</label>
+                                            </div>
+                                            <div class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="sync-categories" checked>
+                                                <label for="sync-categories" class="ml-2 text-sm text-gray-700">Categorias</label>
+                                            </div>
+                                            <div class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="sync-prices">
+                                                <label for="sync-prices" class="ml-2 text-sm text-gray-700">Preços</label>
+                                            </div>
+                                            <div class="flex items-center">
+                                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary" id="sync-stock" checked>
+                                                <label for="sync-stock" class="ml-2 text-sm text-gray-700">Estoque</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="pt-4 border-t flex justify-end">
+                                        <button class="bg-primary text-white px-4 py-2 rounded-md">
+                                            Salvar Configurações
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Perfil Page -->
+                <div id="profile" class="page">
+                    <div class="mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Meu Perfil</h1>
+                        <p class="text-gray-600">Gerencie suas informações de usuário</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Informações do Perfil -->
+                        <div class="dashboard-card bg-white rounded-lg p-6 lg:col-span-2">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Informações Pessoais</h2>
+                            
+                            <div class="space-y-6">
+                                <div class="flex items-center space-x-6">
+                                    <div class="relative">
+                                        <img class="h-24 w-24 rounded-full object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=200&q=80" alt="User">
+                                        <button class="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center">
+                                            <i class="fas fa-camera text-xs"></i>
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-lg font-medium text-gray-800">Christian</h3>
+                                        <p class="text-sm text-gray-500">Proprietário - Innobyte</p>
+                                        <button class="mt-2 text-sm text-primary hover:text-blue-800">Alterar foto</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="Christian">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Sobrenome</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="Silva">
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                                    <input type="email" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="christian@innobyte.com">
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="(11) 99999-9999">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+                                        <input type="text" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary" value="Proprietário">
+                                    </div>
+                                </div>
+                                
+                                <div class="pt-4 border-t flex justify-end">
+                                    <button class="bg-primary text-white px-4 py-2 rounded-md">
+                                        Salvar Alterações
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Configurações de Segurança -->
+                        <div class="dashboard-card bg-white rounded-lg p-6">
+                            <h2 class="text-lg font-semibold text-gray-800 mb-4">Segurança</h2>
+                            
+                            <div class="space-y-6">
+                                <div>
+                                    <h3 class="text-md font-medium text-gray-800 mb-2">Alterar Senha</h3>
+                                    
+                                    <div class="space-y-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Senha Atual</label>
+                                            <input type="password" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
+                                            <input type="password" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmar Nova Senha</label>
+                                            <input type="password" class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+                                        </div>
+                                        
+                                        <button class="w-full bg-gray-100 text-gray-700 py-2 rounded-md">
+                                            Alterar Senha
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="pt-4 border-t">
+                                    <h3 class="text-md font-medium text-gray-800 mb-2">Autenticação de Dois Fatores</h3>
+                                    
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="text-sm text-gray-700">Status: <span class="text-red-500">Desativado</span></p>
+                                            <p class="text-xs text-gray-500">Adicione uma camada extra de segurança</p>
+                                        </div>
+                                        <button class="bg-primary text-white px-3 py-1 rounded-md text-sm">
+                                            Ativar
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="pt-4 border-t">
+                                    <h3 class="text-md font-medium text-gray-800 mb-2">Sessões Ativas</h3>
+                                    
+                                    <div class="space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium">Chrome - Windows</p>
+                                                <p class="text-xs text-gray-500">São Paulo, Brasil • Agora</p>
+                                            </div>
+                                            <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Atual</span>
+                                        </div>
+                                        
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium">Safari - iPhone</p>
+                                                <p class="text-xs text-gray-500">São Paulo, Brasil • 2 horas atrás</p>
+                                            </div>
+                                            <button class="text-red-500 hover:text-red-800 text-sm">
+                                                Sair
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Navegação entre páginas
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class de todos os links
+                document.querySelectorAll('.nav-link').forEach(l => {
+                    l.classList.remove('bg-blue-50', 'border-r-4', 'border-primary');
+                });
+                
+                // Adiciona active class ao link clicado
+                this.classList.add('bg-blue-50', 'border-r-4', 'border-primary');
+                
+                // Oculta todas as páginas
+                document.querySelectorAll('.page').forEach(page => {
+                    page.classList.remove('active');
+                });
+                
+                // Mostra a página correspondente
+                const pageId = this.getAttribute('data-page');
+                document.getElementById(pageId).classList.add('active');
+            });
+        });
+
+        // Navegação entre configurações
+        document.querySelectorAll('.config-nav').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class de todos os links
+                document.querySelectorAll('.config-nav').forEach(l => {
+                    l.classList.remove('bg-blue-50', 'text-primary');
+                    l.classList.add('text-gray-700', 'hover:bg-gray-100');
+                });
+                
+                // Adiciona active class ao link clicado
+                this.classList.add('bg-blue-50', 'text-primary');
+                this.classList.remove('text-gray-700', 'hover:bg-gray-100');
+                
+                // Oculta todos os conteúdos de configuração
+                document.querySelectorAll('.config-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+                
+                // Mostra o conteúdo correspondente
+                const configId = this.getAttribute('data-config') + '-config';
+                document.getElementById(configId).classList.remove('hidden');
+            });
+        });
+
+        // Simulação de interação com elementos no editor
+        document.querySelectorAll('.add-element').forEach(button => {
+            button.addEventListener('click', function() {
+                const type = this.getAttribute('data-type');
+                alert(`Adicionar elemento: ${type}`);
+                // Em uma implementação real, isso adicionaria um elemento à área de edição
+            });
+        });
+
+        // Seleção de elementos no editor
+        document.querySelectorAll('.element').forEach(element => {
+            element.addEventListener('click', function() {
+                // Remove seleção de todos os elementos
+                document.querySelectorAll('.element').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                
+                // Adiciona seleção ao elemento clicado
+                this.classList.add('selected');
+            });
+        });
+
+        // Gráfico de Etiquetas Impressas
+        const ctx = document.getElementById('labelsChart').getContext('2d');
+        const labelsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+                datasets: [
+                    {
+                        label: 'Etiquetas Térmicas',
+                        data: [320, 450, 380, 510, 420, 600, 550, 480, 520, 610, 580, 630],
+                        backgroundColor: '#3B82F6',
+                    },
+                    {
+                        label: 'Etiquetas A4',
+                        data: [120, 150, 180, 210, 190, 230, 250, 220, 240, 260, 280, 300],
+                        backgroundColor: '#10B981',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Quantidade de Etiquetas'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Busca em tempo real (simulação)
+        document.getElementById('search-input').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            // Em uma implementação real, isso filtraria os resultados
+            console.log(`Buscando por: ${searchTerm}`);
+        });
+    </script>
+</body>
+</html>
