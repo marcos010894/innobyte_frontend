@@ -1,7 +1,7 @@
-# fly.toml app configuration file generated for etiquetas-sys-frontend
+# fly.toml app configuration file generated for innobyte-frontend
 # https://fly.io/docs/reference/configuration/
 
-app = "etiquetas-sys-frontend"
+app = "innobyte-frontend"
 primary_region = "gru" # São Paulo, Brasil
 
 [build]

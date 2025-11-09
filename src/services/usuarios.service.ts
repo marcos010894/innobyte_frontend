@@ -4,7 +4,7 @@
  */
 
 import api from './api';
-import { handleApiError, isLimitExceededError } from '../utils/errorHandler';
+import { handleApiError } from '../utils/errorHandler';
 import type {
   UsuarioListItem,
   UsuarioDetail,

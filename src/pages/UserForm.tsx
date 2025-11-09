@@ -4,7 +4,6 @@ import { toast } from 'react-toastify';
 import ClientDataForm from '@components/users/ClientDataForm';
 import LicenseDataForm from '@components/users/LicenseDataForm';
 import CompanyInfoForm from '@components/users/CompanyInfoForm';
-import TokensTable from '@components/users/TokensTable';
 import { getUsuarioById, createUsuario, updateUsuario, getEmpresas } from '../services';
 import { removerMascara, validarCNPJ, validarEmail, validarData } from '../utils/validation';
 
