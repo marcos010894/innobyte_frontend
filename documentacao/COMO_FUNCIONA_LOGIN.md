@@ -127,7 +127,7 @@ Endpoint usado: /api/auth/login
    const result = await loginCliente(email, senha);
    ↓
 7. Faz requisição:
-   POST https://innobyte.fly.dev/api/auth/login-cliente
+   POST http://127.0.0.1:8000//auth/login-cliente
    Body: {
      "email": "cliente@empresa.com",
      "password": "senha123"
@@ -180,7 +180,7 @@ Endpoint usado: /api/auth/login
    const result = await loginMaster(email, senha);
    ↓
 9. Faz requisição:
-   POST https://innobyte.fly.dev/api/auth/login
+   POST http://127.0.0.1:8000//auth/login
    Body: {
      "email": "admin@sistema.com",
      "password": "senha123"
@@ -343,12 +343,12 @@ localStorage.getItem('access_token')
 Quando clica "Entrar", veja a requisição:
 
 Cliente:
-Request URL: https://innobyte.fly.dev/api/auth/login-cliente
+Request URL: http://127.0.0.1:8000//auth/login-cliente
 Request Method: POST
 Status Code: 200 OK
 
 Master:
-Request URL: https://innobyte.fly.dev/api/auth/login
+Request URL: http://127.0.0.1:8000//auth/login
 Request Method: POST
 Status Code: 200 OK
 ```

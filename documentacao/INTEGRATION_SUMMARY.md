@@ -293,7 +293,7 @@ Criar componentes para gerenciar:
 ### **1. Certifique-se que a API está rodando**
 ```bash
 # Backend deve estar em http://localhost:8001
-curl https://innobyte.fly.dev/api/auth/login
+curl http://127.0.0.1:8000//auth/login
 ```
 
 ### **2. Inicie o frontend**

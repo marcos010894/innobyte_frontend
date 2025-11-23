@@ -1,4 +1,8 @@
+import { useNavigate } from 'react-router-dom';
+
 const TemplatesSection = () => {
+  const navigate = useNavigate();
+
   const templates = [
     {
       id: 1,
@@ -27,7 +31,10 @@ const TemplatesSection = () => {
     <div className="dashboard-card bg-white rounded-lg p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-gray-800">Modelos de Etiqueta</h2>
-        <button className="bg-primary text-white px-4 py-2 rounded-md flex items-center hover:bg-blue-600 transition-colors">
+        <button 
+          onClick={() => navigate('/editor')}
+          className="bg-primary text-white px-4 py-2 rounded-md flex items-center hover:bg-blue-600 transition-colors"
+        >
           <i className="fas fa-plus mr-2"></i>
           Novo Modelo
         </button>
@@ -48,7 +55,10 @@ const TemplatesSection = () => {
               </div>
             </div>
             <div className="flex space-x-2">
-              <button className="text-primary hover:text-blue-800 transition-colors p-2">
+              <button 
+                onClick={() => navigate('/editor')}
+                className="text-primary hover:text-blue-800 transition-colors p-2"
+              >
                 <i className="fas fa-edit"></i>
               </button>
               <button className="text-green-500 hover:text-green-800 transition-colors p-2">
@@ -57,6 +67,15 @@ const TemplatesSection = () => {
             </div>
           </div>
         ))}
+      </div>
+      
+      <div className="mt-4 text-center">
+        <button
+          onClick={() => navigate('/templates')}
+          className="text-primary hover:text-blue-800 text-sm font-medium"
+        >
+          Ver todos os templates <i className="fas fa-arrow-right ml-1"></i>
+        </button>
       </div>
     </div>
   );

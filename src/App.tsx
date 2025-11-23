@@ -6,6 +6,7 @@ import Editor from './pages/Editor';
 import Print from './pages/Print';
 import ApiIntegration from './pages/ApiIntegration';
 import Templates from './pages/Templates';
+import TemplatesPage from './pages/TemplatesPage';
 import UsersManagement from './pages/UsersManagement';
 import UserForm from './pages/UserForm';
 import UsuariosAdicionais from './pages/UsuariosAdicionais';
@@ -51,7 +52,8 @@ function App() {
             <Route path="editor" element={<Editor />} />
             <Route path="print" element={<Print />} />
             <Route path="api-integration" element={<ApiIntegration />} />
-            <Route path="templates" element={<Templates />} />
+            <Route path="templates" element={<TemplatesPage />} />
+            <Route path="saved-templates" element={<Templates />} />
             <Route path="users" element={<UsersManagement />} />
             <Route path="users/new" element={<UserForm />} />
             <Route path="users/edit/:id" element={<UserForm />} />

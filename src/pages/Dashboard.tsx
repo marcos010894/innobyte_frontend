@@ -5,6 +5,7 @@ import TemplatesSection from '@components/dashboard/TemplatesSection';
 import RecentActivity from '@components/dashboard/RecentActivity';
 import PrintersSection from '@components/dashboard/PrintersSection';
 import ApiStatusSection from '@components/dashboard/ApiStatusSection';
+import QuickActionsSection from '@components/dashboard/QuickActionsSection';
 import DashboardCliente from '../components/dashboard/DashboardCliente';
 
 const Dashboard = () => {
@@ -30,6 +31,7 @@ const Dashboard = () => {
       </div>
 
       <StatsCards />
+      <QuickActionsSection />
       <ChartsSection />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
