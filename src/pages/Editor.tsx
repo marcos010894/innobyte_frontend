@@ -40,6 +40,7 @@ const Editor: React.FC = () => {
       marginRight: 5,
     },
     elements: [],
+    compartilhado: false, // SEMPRE começa como false (apenas master pode alterar)
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -67,6 +68,13 @@ const Editor: React.FC = () => {
     try {
       const response = await templateService.getById(id);
       const converted = templateService.convertToLabelTemplate(response);
+      
+      // IMPORTANTE: Se não for master, sempre forçar compartilhado = false
+      // Isso evita que clientes tentem salvar templates compartilhados
+      if (user?.tipo !== 'master') {
+        converted.compartilhado = false;
+      }
+      
       setTemplate(converted);
       setIsNewTemplate(false); // Template carregado da API
     } catch (err: any) {
@@ -77,6 +85,10 @@ const Editor: React.FC = () => {
       const templates = JSON.parse(localStorage.getItem('labelTemplates') || '[]');
       const found = templates.find((t: LabelTemplate) => t.id === id);
       if (found) {
+        // IMPORTANTE: Se não for master, sempre forçar compartilhado = false
+        if (user?.tipo !== 'master') {
+          found.compartilhado = false;
+        }
         setTemplate(found);
         setIsNewTemplate(false); // Template do localStorage
       }
@@ -222,10 +234,27 @@ const Editor: React.FC = () => {
       // Usar o flag para determinar se é criação ou atualização
       if (isNewTemplate || !template.id) {
         // Criar novo template
+        // Clientes e colaboradores NÃO podem compartilhar templates (apenas master)
+        const canShare = user?.tipo === 'master';
+        const compartilhado = canShare ? (template.compartilhado || false) : false;
+        
+        // Log para debug
+        console.log('🔒 Salvando template:', {
+          userTipo: user?.tipo,
+          canShare,
+          compartilhadoOriginal: template.compartilhado,
+          compartilhadoFinal: compartilhado,
+        });
+        
+        // Aviso se cliente tentar compartilhar
+        if (!canShare && template.compartilhado) {
+          console.warn('⚠️ Cliente tentou salvar como compartilhado - bloqueado!');
+        }
+        
         const request = templateService.convertToCreateRequest({
           ...template,
           thumbnail,
-          compartilhado: template.compartilhado || false,
+          compartilhado,
         });
         
         const response = await templateService.create(request);
@@ -239,6 +268,23 @@ const Editor: React.FC = () => {
         // navigate('/templates');
       } else {
         // Atualizar template existente
+        // Clientes e colaboradores NÃO podem compartilhar templates (apenas master)
+        const canShare = user?.tipo === 'master';
+        const compartilhado = canShare ? (template.compartilhado || false) : false;
+        
+        // Log para debug
+        console.log('🔒 Atualizando template:', {
+          userTipo: user?.tipo,
+          canShare,
+          compartilhadoOriginal: template.compartilhado,
+          compartilhadoFinal: compartilhado,
+        });
+        
+        // Aviso se cliente tentar compartilhar
+        if (!canShare && template.compartilhado) {
+          console.warn('⚠️ Cliente tentou atualizar como compartilhado - bloqueado!');
+        }
+        
         await templateService.update(template.id, {
           nome: template.config.name,
           descricao: template.config.description,
@@ -246,7 +292,7 @@ const Editor: React.FC = () => {
           config: template.config,
           elements: template.elements,
           thumbnail,
-          compartilhado: template.compartilhado,
+          compartilhado,
         });
         alert('✅ Template atualizado com sucesso!');
       }
@@ -297,6 +343,7 @@ const Editor: React.FC = () => {
           snapToGrid: false,
         },
         elements: [],
+        compartilhado: false, // SEMPRE começa como false
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -356,7 +403,14 @@ const Editor: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={template.compartilhado || false}
-                        onChange={(e) => setTemplate({ ...template, compartilhado: e.target.checked })}
+                        onChange={(e) => {
+                          // VALIDAÇÃO: Apenas master pode alterar
+                          if (user?.tipo === 'master') {
+                            setTemplate({ ...template, compartilhado: e.target.checked });
+                          } else {
+                            console.error('❌ Tentativa de alterar compartilhado sem ser master!');
+                          }
+                        }}
                         className="rounded border-gray-300 text-primary focus:ring-primary"
                       />
                       <i className="fas fa-share-alt text-xs"></i>

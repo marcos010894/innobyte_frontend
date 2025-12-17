@@ -94,7 +94,7 @@ dist
 
 ### 10. `.env.production` (128 bytes)
 ```env
-VITE_API_URL=http://127.0.0.1:8000/
+VITE_API_URL=https://innobyte.fly.dev/
 NODE_ENV=production
 ```
 **O que configura**: ✅ URL da API configurada!
@@ -113,7 +113,7 @@ Template documentado das variáveis de ambiente
 - Como funciona VITE_API_URL
 - 3 formas de configurar variáveis
 - Troubleshooting
-- Configuração atual: ✅ `http://127.0.0.1:8000/`
+- Configuração atual: ✅ `https://innobyte.fly.dev/`
 
 ---
 

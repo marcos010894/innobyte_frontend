@@ -10,7 +10,7 @@ Para variáveis `VITE_*` no frontend React, existem 3 formas:
 
 ```bash
 # .env.production
-VITE_API_URL=http://127.0.0.1:8000/
+VITE_API_URL=https://innobyte.fly.dev/
 ```
 
 **Como funciona**:
@@ -39,7 +39,7 @@ flyctl deploy
 ### 🔐 **Opção 2: Fly.io Secrets** (NÃO recomendado para VITE_*)
 
 ```bash
-flyctl secrets set VITE_API_URL=http://127.0.0.1:8000/
+flyctl secrets set VITE_API_URL=https://innobyte.fly.dev/
 ```
 
 **⚠️ PROBLEMA**: Fly.io secrets são injetados em **runtime**, mas Vite precisa delas em **build time**.
@@ -57,7 +57,7 @@ Se quiser passar a URL via comando, modifique o Dockerfile:
 FROM node:18-alpine AS builder
 
 # Aceitar URL como build argument
-ARG VITE_API_URL=http://127.0.0.1:8000/
+ARG VITE_API_URL=https://innobyte.fly.dev/
 ENV VITE_API_URL=$VITE_API_URL
 
 WORKDIR /app
@@ -77,7 +77,7 @@ E no `fly.toml`:
 [build]
   dockerfile = "Dockerfile"
   [build.args]
-    VITE_API_URL = "http://127.0.0.1:8000/"
+    VITE_API_URL = "https://innobyte.fly.dev/"
 ```
 
 **Deploy com URL customizada**:
@@ -103,7 +103,7 @@ flyctl deploy --build-arg VITE_API_URL=https://nova-url.fly.dev/api
 
 ```bash
 # .env.production
-VITE_API_URL=http://127.0.0.1:8000/
+VITE_API_URL=https://innobyte.fly.dev/
 NODE_ENV=production
 ```
 
@@ -126,7 +126,7 @@ flyctl deploy
 O Fly.io vai:
 1. Copiar `.env.production` para dentro do Docker
 2. Rodar `npm run build` (Vite lê o .env.production)
-3. Gerar bundle com `VITE_API_URL=http://127.0.0.1:8000/`
+3. Gerar bundle com `VITE_API_URL=https://innobyte.fly.dev/`
 4. Servir via Nginx
 
 ---
@@ -145,7 +145,7 @@ flyctl open
 # Abrir DevTools (F12) > Console
 # Testar:
 console.log(import.meta.env.VITE_API_URL)
-// Deve mostrar: http://127.0.0.1:8000/
+// Deve mostrar: https://innobyte.fly.dev/
 ```
 
 ---

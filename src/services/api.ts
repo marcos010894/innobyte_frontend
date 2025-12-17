@@ -8,8 +8,8 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 // Configuração da instância base do Axios
 const api = axios.create({
  
-  //baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/',
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api',
+  //baseURL: import.meta.env.VITE_API_BASE_URL || 'https://innobyte.fly.dev/',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://innobyte.fly.dev/api',
   timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 30000,
   headers: {
     'Content-Type': 'application/json',

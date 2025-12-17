@@ -21,7 +21,7 @@ Todas as chamadas HTTP no sistema utilizam **Axios**, garantindo:
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://innobyte.fly.dev/',
   timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -275,7 +275,7 @@ const handleSave = async () => {
 
 ```typescript
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/',  // Variável de ambiente
+  baseURL: 'https://innobyte.fly.dev/',  // Variável de ambiente
   timeout: 30000,                         // 30 segundos
   headers: {
     'Content-Type': 'application/json',
@@ -397,7 +397,7 @@ axios.get(url, {
 localStorage.setItem('token', 'seu_token_aqui');
 
 # Faça uma requisição de teste:
-fetch('http://127.0.0.1:8000//auth/me', {
+fetch('https://innobyte.fly.dev//auth/me', {
   headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
 }).then(r => r.json()).then(console.log);
 ```

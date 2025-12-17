@@ -29,7 +29,7 @@ src/
 
 ### **1. Variáveis de Ambiente (.env)**
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000/
+VITE_API_BASE_URL=https://innobyte.fly.dev/
 VITE_API_TIMEOUT=30000
 VITE_ENV=development
 ```
@@ -283,7 +283,7 @@ console.log(result);
 
 ### **2. Testar API no Swagger**
 ```
-http://127.0.0.1:8000/docs
+https://innobyte.fly.dev/docs
 ```
 
 ### **3. Verificar Token**

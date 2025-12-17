@@ -17,6 +17,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       items: [
         { path: '/', icon: 'fa-tachometer-alt', label: 'Dashboard' },
         { path: '/editor', icon: 'fa-edit', label: 'Editor de Modelos' },
+        { path: '/templates', icon: 'fa-layer-group', label: 'Modelos Salvos' },
         { path: '/print', icon: 'fa-print', label: 'Impressão' },
         { path: '/api-integration', icon: 'fa-database', label: 'Integração API' },
       ],
@@ -32,7 +33,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       section: 'Gestão',
       showOnlyForMaster: true, // Esta seção é só para master
       items: [
-        { path: '/templates', icon: 'fa-layer-group', label: 'Modelos Salvos' },
         { path: '/users', icon: 'fa-users', label: 'Usuários e Licenças' },
         { path: '/history', icon: 'fa-history', label: 'Histórico' },
       ],

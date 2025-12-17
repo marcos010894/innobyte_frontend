@@ -8,7 +8,7 @@ npm install axios
 
 # 2. Verificar variável de ambiente
 # Arquivo .env já criado com:
-# VITE_API_BASE_URL=http://127.0.0.1:8000/
+# VITE_API_BASE_URL=https://innobyte.fly.dev/
 ```
 
 ---
@@ -349,7 +349,7 @@ Veja todas as chamadas no console (apenas em desenvolvimento)
 
 ### **1. Verificar se API está rodando**
 ```bash
-curl http://127.0.0.1:8000//auth/login -X POST \
+curl https://innobyte.fly.dev//auth/login -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@innobyte.com.br","password":"Admin@123"}'
 ```
