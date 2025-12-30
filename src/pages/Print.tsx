@@ -10,6 +10,18 @@ import { replaceTemplateVariables } from '@/utils/templateVariables';
 import templateService from '@/services/templateService';
 import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
+import { useAuth } from '@hooks/useAuth';
+import * as integracoesService from '@/services/integracoes.service';
+import * as egestorService from '@/services/egestor.service';
+import type { IntegracaoAPI } from '@/types/api.types';
+import {
+  generateBatchThermalCommands,
+  downloadThermalFile,
+  THERMAL_FORMATS,
+  COMMON_DPIS,
+  type ThermalPrinterFormat,
+  type ThermalPrintConfig,
+} from '@/services/thermalPrinter.service';
 
 /**
  * Função auxiliar para renderizar um elemento do template no PDF
@@ -221,6 +233,7 @@ function renderElementToPDF(
 
 const Print: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   // Estados
   const [products, setProducts] = useState<Product[]>([]);
@@ -233,12 +246,35 @@ const Print: React.FC = () => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Estados para integração E-gestor
+  const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
+  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor'>('manual');
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [egestorPage, setEgestorPage] = useState(1);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  
+  // Estado para quantidade de etiquetas por produto (chave: id do produto, valor: quantidade)
+  const [printQuantities, setPrintQuantities] = useState<Record<string, number>>({});
+  
   // Estados para edição de preview
   const [showPreviewEditor, setShowPreviewEditor] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<LabelTemplate | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [showPreviewWithData, setShowPreviewWithData] = useState(false); // Toggle para mostrar com dados reais
+  
+  // Estados para exportação de impressora térmica
+  const [showThermalExport, setShowThermalExport] = useState(false);
+  const [thermalConfig, setThermalConfig] = useState<ThermalPrintConfig>({
+    format: 'ZPL',
+    dpi: 203,
+    labelWidth: 50,
+    labelHeight: 30,
+    printSpeed: 4,
+    darkness: 15,
+    copies: 1,
+  });
+  const [isGeneratingThermal, setIsGeneratingThermal] = useState(false);
   
   // Configuração de impressão
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
@@ -268,55 +304,14 @@ const Print: React.FC = () => {
   // Carregar produtos mockados e templates
   useEffect(() => {
     const loadData = async () => {
-      // Produtos mockados (você pode substituir por API real)
-      const mockProducts: Product[] = [
-        {
-          id: '1',
-          name: 'Produto Exemplo 1',
-          code: 'PROD001',
-          price: 29.90,
-          quantity: 100,
-          category: 'Eletrônicos',
-          barcode: '7891234567890',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: '2',
-          name: 'Produto Exemplo 2',
-          code: 'PROD002',
-          price: 49.90,
-          quantity: 50,
-          category: 'Alimentos',
-          barcode: '7891234567891',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: '3',
-          name: 'Produto Exemplo 3',
-          code: 'PROD003',
-          price: 19.90,
-          quantity: 200,
-          category: 'Vestuário',
-          barcode: '7891234567892',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ];
-      setProducts(mockProducts);
-
       // Carregar templates da API
       try {
         setIsLoading(true);
         const apiTemplates = await templateService.list();
         console.log('📋 Templates recebidos da API (RAW):', apiTemplates);
-        console.log('📋 Primeiro template:', apiTemplates[0]);
-        console.log('📋 Elements do primeiro template:', apiTemplates[0]?.elements);
         
         const converted = apiTemplates.map(templateService.convertToLabelTemplate);
         console.log('✅ Templates convertidos:', converted);
-        console.log('✅ Elements do primeiro convertido:', converted[0]?.elements);
         
         setTemplates(converted);
         
@@ -325,14 +320,122 @@ const Print: React.FC = () => {
         }
       } catch (err) {
         console.error('❌ Erro ao carregar templates da API:', err);
-        alert('Erro ao carregar templates. Verifique sua conexão com a API.');
       } finally {
         setIsLoading(false);
+      }
+
+      // Verificar se tem integração com E-gestor
+      if (user?.id) {
+        try {
+          const response = await integracoesService.getIntegracoes(user.id);
+          if (response.success && response.data) {
+            const egestorIntegracao = response.data.data.find(
+              (i) => i.provedor === 'eGestor' && i.ativa && i.status_conexao === 'conectado'
+            );
+            if (egestorIntegracao) {
+              setIntegracaoEgestor(egestorIntegracao);
+              setFonteDados('egestor');
+              // Carregar produtos do E-gestor
+              await loadEgestorProducts(egestorIntegracao.id, 1);
+            } else {
+              // Sem integração, usar produtos de exemplo
+              loadMockProducts();
+            }
+          } else {
+            loadMockProducts();
+          }
+        } catch (err) {
+          console.error('❌ Erro ao verificar integrações:', err);
+          loadMockProducts();
+        }
+      } else {
+        loadMockProducts();
       }
     };
     
     loadData();
-  }, []);
+  }, [user?.id]);
+
+  // Função para carregar produtos mockados
+  const loadMockProducts = () => {
+    const mockProducts: Product[] = [
+      {
+        id: '1',
+        name: 'Produto Exemplo 1',
+        code: 'PROD001',
+        price: 29.90,
+        quantity: 100,
+        category: 'Eletrônicos',
+        barcode: '7891234567890',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: '2',
+        name: 'Produto Exemplo 2',
+        code: 'PROD002',
+        price: 49.90,
+        quantity: 50,
+        category: 'Alimentos',
+        barcode: '7891234567891',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: '3',
+        name: 'Produto Exemplo 3',
+        code: 'PROD003',
+        price: 19.90,
+        quantity: 200,
+        category: 'Vestuário',
+        barcode: '7891234567892',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    setProducts(mockProducts);
+    setFonteDados('manual');
+  };
+
+  // Função para carregar produtos do E-gestor
+  const loadEgestorProducts = async (integracaoId: number, page: number, append: boolean = false) => {
+    setIsLoadingProducts(true);
+    try {
+      const response = await egestorService.getProdutos(integracaoId, { page, filtro: searchTerm || undefined });
+      
+      if (response.success && response.data) {
+        const convertedProducts = response.data.data.map(egestorService.converterProdutoParaImpressao);
+        
+        if (append) {
+          setProducts(prev => [...prev, ...convertedProducts]);
+        } else {
+          setProducts(convertedProducts);
+        }
+        
+        setEgestorPage(page);
+        setHasMoreProducts(response.data.data.length >= 50);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao carregar produtos do E-gestor:', err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  // Carregar mais produtos do E-gestor
+  const loadMoreProducts = async () => {
+    if (!integracaoEgestor || !hasMoreProducts || isLoadingProducts) return;
+    await loadEgestorProducts(integracaoEgestor.id, egestorPage + 1, true);
+  };
+
+  // Recarregar produtos do E-gestor
+  const refreshEgestorProducts = async () => {
+    if (!integracaoEgestor) return;
+    setProducts([]);
+    setSelectedProducts(new Set());
+    setPrintQuantities({});
+    await loadEgestorProducts(integracaoEgestor.id, 1, false);
+  };
 
   // Carregar template completo quando selecionado
   useEffect(() => {
@@ -443,20 +546,88 @@ const Print: React.FC = () => {
     const newSelected = new Set(selectedProducts);
     if (newSelected.has(id)) {
       newSelected.delete(id);
+      // Remover quantidade quando desseleciona
+      setPrintQuantities(prev => {
+        const updated = { ...prev };
+        delete updated[id];
+        return updated;
+      });
     } else {
       newSelected.add(id);
+      // Inicializar quantidade como 1 quando seleciona
+      setPrintQuantities(prev => ({
+        ...prev,
+        [id]: 1
+      }));
     }
     setSelectedProducts(newSelected);
   };
 
   // Selecionar todos os produtos filtrados
   const selectAll = () => {
-    setSelectedProducts(new Set(filteredProducts.map((p) => p.id)));
+    const newSelected = new Set(filteredProducts.map((p) => p.id));
+    setSelectedProducts(newSelected);
+    // Inicializar todas as quantidades como 1
+    const newQuantities: Record<string, number> = {};
+    filteredProducts.forEach(p => {
+      newQuantities[p.id] = 1;
+    });
+    setPrintQuantities(newQuantities);
   };
 
   // Desselecionar todos
   const deselectAll = () => {
     setSelectedProducts(new Set());
+    setPrintQuantities({});
+  };
+
+  // Atualizar quantidade de etiquetas para um produto
+  const updatePrintQuantity = (productId: string, quantity: number) => {
+    setPrintQuantities(prev => ({
+      ...prev,
+      [productId]: Math.max(1, quantity)
+    }));
+  };
+
+  // Definir quantidade = estoque para um produto
+  const setQuantityFromStock = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      setPrintQuantities(prev => ({
+        ...prev,
+        [productId]: product.quantity || 1
+      }));
+    }
+  };
+
+  // Aplicar quantidade a todos os produtos selecionados
+  const applyQuantityToAll = (mode: 'stock' | 'custom', customQty?: number) => {
+    const newQuantities: Record<string, number> = {};
+    selectedProducts.forEach(productId => {
+      const product = products.find(p => p.id === productId);
+      if (product) {
+        if (mode === 'stock') {
+          newQuantities[productId] = product.quantity || 1;
+        } else {
+          newQuantities[productId] = customQty || 1;
+        }
+      }
+    });
+    setPrintQuantities(prev => ({ ...prev, ...newQuantities }));
+  };
+
+  // Obter quantidade de etiquetas para um produto (padrão: 1)
+  const getPrintQuantity = (productId: string): number => {
+    return printQuantities[productId] || 1;
+  };
+
+  // Calcular total de etiquetas considerando as quantidades
+  const getTotalLabelsCount = (): number => {
+    let total = 0;
+    selectedProducts.forEach(productId => {
+      total += getPrintQuantity(productId);
+    });
+    return total;
   };
 
   // Aplicar preset de impressão
@@ -467,8 +638,8 @@ const Print: React.FC = () => {
     });
   };
 
-  // Calcular totais
-  const totalLabels = selectedProducts.size;
+  // Calcular totais (usando quantidades definidas)
+  const totalLabels = getTotalLabelsCount();
   const labelsPerPage = printConfig.columns * printConfig.rows;
   const totalPages = Math.ceil(totalLabels / labelsPerPage);
 
@@ -676,9 +847,10 @@ const Print: React.FC = () => {
 
       console.log('📋 Produtos selecionados:', selectedProductsList);
 
-      // Para cada produto selecionado
+      // Para cada produto selecionado, imprimir a quantidade definida
       for (const product of selectedProductsList) {
-        console.log('🏷️ Processando produto:', product.name);
+        const quantity = getPrintQuantity(product.id);
+        console.log(`🏷️ Processando produto: ${product.name} (${quantity} etiquetas)`);
         
         // Substituir variáveis do template com dados do produto
         const elementsWithData = replaceTemplateVariables(
@@ -694,39 +866,42 @@ const Print: React.FC = () => {
         
         console.log('✏️ Elementos com dados substituídos:', elementsWithData);
 
-        // Renderizar etiqueta como imagem usando html2canvas
+        // Renderizar etiqueta como imagem usando html2canvas (apenas uma vez por produto)
         const labelImage = await renderLabelToCanvas(template, elementsWithData);
         
-        // Calcular posição na grade
-        const col = labelIndex % columns;
-        const row = Math.floor((labelIndex % (columns * rows)) / columns);
-        
-        // Se começou uma nova página, adiciona página (exceto na primeira)
-        if (labelIndex > 0 && labelIndex % (columns * rows) === 0) {
-          pdf.addPage();
-          currentPage++;
+        // Imprimir a quantidade de etiquetas definida para este produto
+        for (let copy = 0; copy < quantity; copy++) {
+          // Calcular posição na grade
+          const col = labelIndex % columns;
+          const row = Math.floor((labelIndex % (columns * rows)) / columns);
+          
+          // Se começou uma nova página, adiciona página (exceto na primeira)
+          if (labelIndex > 0 && labelIndex % (columns * rows) === 0) {
+            pdf.addPage();
+            currentPage++;
+          }
+
+          // Calcular posição X e Y
+          const x = col * (labelWidth + spacingHorizontal) + printConfig.marginLeft;
+          const y = row * (labelHeight + spacingVertical) + printConfig.marginTop;
+          
+          console.log(`📍 Posição da etiqueta: x=${x}, y=${y}, col=${col}, row=${row}, cópia ${copy + 1}/${quantity}`);
+
+          // Desenhar borda se configurado
+          if (printConfig.showBorders) {
+            pdf.setDrawColor(200, 200, 200);
+            pdf.rect(x, y, labelWidth, labelHeight);
+          }
+
+          // Adicionar a imagem da etiqueta ao PDF
+          pdf.addImage(labelImage, 'PNG', x, y, labelWidth, labelHeight);
+
+          labelIndex++;
         }
-
-        // Calcular posição X e Y
-        const x = col * (labelWidth + spacingHorizontal) + printConfig.marginLeft;
-        const y = row * (labelHeight + spacingVertical) + printConfig.marginTop;
-        
-        console.log(`📍 Posição da etiqueta: x=${x}, y=${y}, col=${col}, row=${row}`);
-
-        // Desenhar borda se configurado
-        if (printConfig.showBorders) {
-          pdf.setDrawColor(200, 200, 200);
-          pdf.rect(x, y, labelWidth, labelHeight);
-        }
-
-        // Adicionar a imagem da etiqueta ao PDF
-        pdf.addImage(labelImage, 'PNG', x, y, labelWidth, labelHeight);
-
-        labelIndex++;
       }
 
       // Salvar PDF
-      const fileName = `etiquetas_${selectedProductsList.length}_produtos_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `etiquetas_${totalLabels}_unidades_${selectedProductsList.length}_produtos_${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
       const skipInfo = skipLabels && skipLabels > 0 ? `\n• ${skipLabels} etiquetas puladas` : '';
@@ -735,6 +910,78 @@ const Print: React.FC = () => {
       alert('❌ Erro ao gerar PDF. Verifique o console para mais detalhes.');
     } finally {
       setIsPrinting(false);
+    }
+  };
+
+  /**
+   * Gera e baixa arquivo de comandos para impressora térmica (ZPL/EPL/TSPL)
+   */
+  const handleThermalExport = async () => {
+    if (selectedProducts.size === 0) {
+      alert('Selecione pelo menos um produto para exportar!');
+      return;
+    }
+
+    if (!selectedTemplateData) {
+      alert('Selecione um template de etiqueta!');
+      return;
+    }
+
+    setIsGeneratingThermal(true);
+
+    try {
+      const template = selectedTemplateData;
+
+      // Validar se o template tem elementos
+      if (!template.elements || template.elements.length === 0) {
+        alert('⚠️ O template selecionado está vazio!');
+        setIsGeneratingThermal(false);
+        return;
+      }
+
+      // Montar lista de produtos com quantidade
+      const selectedProductsList = Array.from(selectedProducts).map(id => 
+        products.find(p => p.id === id)
+      ).filter(Boolean) as Product[];
+
+      const productsWithQuantity = selectedProductsList.map(product => ({
+        product,
+        quantity: getPrintQuantity(product.id),
+      }));
+
+      // Usar dimensões do template se não configuradas manualmente
+      const configToUse: ThermalPrintConfig = {
+        ...thermalConfig,
+        labelWidth: thermalConfig.labelWidth || template.config.width,
+        labelHeight: thermalConfig.labelHeight || template.config.height,
+      };
+
+      // Gerar comandos
+      const commands = generateBatchThermalCommands(
+        template,
+        productsWithQuantity,
+        configToUse,
+        {
+          truncateNames: printConfig.truncateNames,
+          maxNameLength: printConfig.maxNameLength,
+          priceFormat: printConfig.priceFormat as 'decimal' | 'integer',
+          pricePrefix: printConfig.pricePrefix,
+        }
+      );
+
+      // Baixar arquivo
+      const fileName = `etiquetas_${thermalConfig.format.toLowerCase()}_${totalLabels}un_${new Date().toISOString().split('T')[0]}`;
+      downloadThermalFile(commands, thermalConfig.format, fileName);
+
+      // Fechar modal
+      setShowThermalExport(false);
+
+      alert(`✅ Arquivo ${thermalConfig.format} gerado com sucesso!\n\nArquivo: ${fileName}.${thermalConfig.format === 'TSPL' ? 'prn' : thermalConfig.format.toLowerCase()}`);
+    } catch (error) {
+      console.error('Erro ao gerar arquivo térmico:', error);
+      alert('❌ Erro ao gerar arquivo. Verifique o console para mais detalhes.');
+    } finally {
+      setIsGeneratingThermal(false);
     }
   };
 
@@ -793,17 +1040,106 @@ const Print: React.FC = () => {
                   Limpar
                 </button>
               </div>
+              
+              {/* Barra de ações rápidas para quantidade - aparece quando há produtos selecionados */}
+              {selectedProducts.size > 0 && (
+                <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-sm font-medium text-gray-700">
+                      <i className="fas fa-layer-group mr-2 text-primary"></i>
+                      Aplicar quantidade a todos ({selectedProducts.size}):
+                    </span>
+                    <button
+                      onClick={() => applyQuantityToAll('stock')}
+                      className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                    >
+                      <i className="fas fa-box mr-2"></i>
+                      Usar Estoque
+                    </button>
+                    <button
+                      onClick={() => applyQuantityToAll('custom', 1)}
+                      className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+                    >
+                      1 cada
+                    </button>
+                    <button
+                      onClick={() => applyQuantityToAll('custom', 5)}
+                      className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+                    >
+                      5 cada
+                    </button>
+                    <button
+                      onClick={() => applyQuantityToAll('custom', 10)}
+                      className="px-3 py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+                    >
+                      10 cada
+                    </button>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs text-gray-500">Personalizado:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Qtd"
+                        className="w-16 px-2 py-1.5 text-sm border border-gray-300 rounded-lg text-center"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const value = parseInt((e.target as HTMLInputElement).value);
+                            if (value > 0) {
+                              applyQuantityToAll('custom', value);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Lista de Produtos */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-200 bg-gray-50">
-                <h2 className="font-semibold text-gray-900">
-                  Produtos Disponíveis ({filteredProducts.length})
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-gray-900">
+                    Produtos Disponíveis ({filteredProducts.length})
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    {fonteDesvios === 'egestor' ? (
+                      <>
+                        <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                          <i className="fas fa-plug mr-1"></i>E-gestor
+                        </span>
+                        <button
+                          onClick={refreshEgestorProducts}
+                          disabled={isLoadingProducts}
+                          className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                          title="Recarregar produtos"
+                        >
+                          <i className={`fas fa-sync ${isLoadingProducts ? 'fa-spin' : ''}`}></i>
+                        </button>
+                      </>
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+                        <i className="fas fa-edit mr-1"></i>Produtos de exemplo
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {fonteDesvios === 'manual' && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    Configure a <a href="/api-integration" className="underline font-medium">integração com E-gestor</a> para importar seus produtos reais.
+                  </p>
+                )}
               </div>
               <div className="max-h-[600px] overflow-y-auto">
-                {filteredProducts.length === 0 ? (
+                {isLoadingProducts && products.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <i className="fas fa-spinner fa-spin text-4xl mb-3"></i>
+                    <p>Carregando produtos do E-gestor...</p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
                   <div className="p-8 text-center text-gray-500">
                     <i className="fas fa-inbox text-4xl mb-3"></i>
                     <p>Nenhum produto encontrado</p>
@@ -813,19 +1149,18 @@ const Print: React.FC = () => {
                     {filteredProducts.map((product) => (
                       <div
                         key={product.id}
-                        onClick={() => toggleProduct(product.id)}
-                        className={`p-4 cursor-pointer transition-colors hover:bg-gray-50 ${
-                          selectedProducts.has(product.id) ? 'bg-blue-50' : ''
+                        className={`p-4 transition-colors ${
+                          selectedProducts.has(product.id) ? 'bg-blue-50' : 'hover:bg-gray-50'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
                             checked={selectedProducts.has(product.id)}
-                            onChange={() => {}}
-                            className="w-5 h-5 text-primary rounded focus:ring-primary"
+                            onChange={() => toggleProduct(product.id)}
+                            className="w-5 h-5 text-primary rounded focus:ring-primary cursor-pointer"
                           />
-                          <div className="flex-1">
+                          <div className="flex-1 cursor-pointer" onClick={() => toggleProduct(product.id)}>
                             <div className="flex items-start justify-between">
                               <div>
                                 <h3 className="font-medium text-gray-900">{product.name}</h3>
@@ -838,9 +1173,9 @@ const Print: React.FC = () => {
                                     <i className="fas fa-tag mr-1"></i>
                                     {product.category}
                                   </span>
-                                  <span>
+                                  <span className="text-blue-600 font-medium">
                                     <i className="fas fa-box mr-1"></i>
-                                    {product.quantity} un.
+                                    Estoque: {product.quantity} un.
                                   </span>
                                 </div>
                               </div>
@@ -852,8 +1187,85 @@ const Print: React.FC = () => {
                             </div>
                           </div>
                         </div>
+                        
+                        {/* Controles de quantidade - aparece quando produto está selecionado */}
+                        {selectedProducts.has(product.id) && (
+                          <div className="mt-3 ml-8 p-3 bg-white rounded-lg border border-blue-200 shadow-sm">
+                            <div className="flex items-center justify-between gap-4">
+                              <label className="text-sm font-medium text-gray-700">
+                                <i className="fas fa-print mr-2 text-primary"></i>
+                                Qtd. etiquetas:
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updatePrintQuantity(product.id, getPrintQuantity(product.id) - 1);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-bold transition-colors"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={getPrintQuantity(product.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updatePrintQuantity(product.id, parseInt(e.target.value) || 1);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="w-16 text-center px-2 py-1 border border-gray-300 rounded-lg text-gray-900 font-semibold"
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updatePrintQuantity(product.id, getPrintQuantity(product.id) + 1);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-bold transition-colors"
+                                >
+                                  +
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuantityFromStock(product.id);
+                                  }}
+                                  className="ml-2 px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-medium transition-colors"
+                                  title="Usar quantidade em estoque"
+                                >
+                                  <i className="fas fa-box mr-1"></i>
+                                  = Estoque ({product.quantity})
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
+                    
+                    {/* Botão Carregar Mais - E-gestor */}
+                    {fonteDesvios === 'egestor' && hasMoreProducts && (
+                      <div className="p-4 text-center border-t border-gray-100">
+                        <button
+                          onClick={loadMoreProducts}
+                          disabled={isLoadingProducts}
+                          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                        >
+                          {isLoadingProducts ? (
+                            <>
+                              <i className="fas fa-spinner fa-spin mr-2"></i>
+                              Carregando...
+                            </>
+                          ) : (
+                            <>
+                              <i className="fas fa-plus mr-2"></i>
+                              Carregar mais produtos
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -868,11 +1280,15 @@ const Print: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span>Produtos Selecionados:</span>
-                  <span className="text-2xl font-bold">{selectedProducts.size}</span>
+                  <span className="text-xl font-bold">{selectedProducts.size}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Total de Etiquetas:</span>
+                  <span className="text-2xl font-bold text-yellow-300">{totalLabels}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>Etiquetas por Página:</span>
-                  <span className="text-xl font-bold">{labelsPerPage}</span>
+                  <span className="text-lg font-bold">{labelsPerPage}</span>
                 </div>
                 <div className="flex justify-between items-center pt-3 border-t border-white/20">
                   <span>Total de Páginas:</span>
@@ -881,6 +1297,12 @@ const Print: React.FC = () => {
                 <div className="text-xs text-blue-100 mt-2">
                   {printConfig.columns} colunas × {printConfig.rows} linhas
                 </div>
+                {totalLabels > 0 && (
+                  <div className="mt-3 p-2 bg-white/10 rounded-lg text-xs">
+                    <i className="fas fa-info-circle mr-2"></i>
+                    {selectedProducts.size} produto(s) × quantidades definidas = {totalLabels} etiqueta(s)
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1003,13 +1425,199 @@ const Print: React.FC = () => {
                 ) : (
                   <>
                     <i className="fas fa-print mr-2"></i>
-                    Gerar PDF ({totalPages} {totalPages === 1 ? 'página' : 'páginas'})
+                    Gerar PDF - {totalLabels} etiqueta{totalLabels !== 1 ? 's' : ''} ({totalPages} {totalPages === 1 ? 'página' : 'páginas'})
                   </>
                 )}
+              </button>
+              
+              {/* Botão Impressora Térmica */}
+              <button
+                onClick={() => setShowThermalExport(true)}
+                disabled={selectedProducts.size === 0 || !selectedTemplate}
+                className="w-full px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                <i className="fas fa-barcode mr-2"></i>
+                Exportar para Impressora Térmica (ZPL/EPL/TSPL)
               </button>
             </div>
           </div>
         </div>
+
+        {/* Modal de Exportação Térmica */}
+        {showThermalExport && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">🖨️ Exportar para Impressora Térmica</h2>
+                  <button
+                    onClick={() => setShowThermalExport(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Formato da Impressora */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <i className="fas fa-print mr-2"></i>
+                    Formato/Linguagem
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {THERMAL_FORMATS.map((format) => (
+                      <button
+                        key={format.value}
+                        onClick={() => setThermalConfig({ ...thermalConfig, format: format.value })}
+                        className={`p-3 border-2 rounded-lg text-center transition-colors ${
+                          thermalConfig.format === format.value
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-gray-200 hover:border-orange-300'
+                        }`}
+                      >
+                        <div className="font-bold text-sm">{format.label}</div>
+                        <div className="text-xs text-gray-500 mt-1">{format.description.split(' - ')[1]}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* DPI */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <i className="fas fa-ruler mr-2"></i>
+                    Resolução (DPI)
+                  </label>
+                  <select
+                    value={thermalConfig.dpi}
+                    onChange={(e) => setThermalConfig({ ...thermalConfig, dpi: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                  >
+                    {COMMON_DPIS.map((dpi) => (
+                      <option key={dpi.value} value={dpi.value}>
+                        {dpi.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    A maioria das impressoras térmicas usa 203 DPI
+                  </p>
+                </div>
+
+                {/* Dimensões do Label */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Largura (mm)
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="200"
+                      value={thermalConfig.labelWidth}
+                      onChange={(e) => setThermalConfig({ ...thermalConfig, labelWidth: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Altura (mm)
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="200"
+                      value={thermalConfig.labelHeight}
+                      onChange={(e) => setThermalConfig({ ...thermalConfig, labelHeight: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Velocidade e Densidade */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Velocidade (1-10)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={thermalConfig.printSpeed}
+                      onChange={(e) => setThermalConfig({ ...thermalConfig, printSpeed: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Escuridão (0-30)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={thermalConfig.darkness}
+                      onChange={(e) => setThermalConfig({ ...thermalConfig, darkness: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Resumo */}
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-orange-800 mb-2">
+                    <i className="fas fa-info-circle mr-2"></i>
+                    Resumo da Exportação
+                  </h4>
+                  <div className="text-sm text-orange-700 space-y-1">
+                    <div>• Formato: <strong>{thermalConfig.format}</strong></div>
+                    <div>• Produtos: <strong>{selectedProducts.size}</strong></div>
+                    <div>• Total de etiquetas: <strong>{totalLabels}</strong></div>
+                    <div>• Tamanho: <strong>{thermalConfig.labelWidth}×{thermalConfig.labelHeight}mm</strong></div>
+                  </div>
+                </div>
+
+                {/* Aviso */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-700">
+                    <i className="fas fa-lightbulb mr-2"></i>
+                    <strong>Dica:</strong> O arquivo gerado pode ser enviado diretamente para a impressora térmica via porta serial, USB ou rede, dependendo do modelo da impressora.
+                  </p>
+                </div>
+
+                {/* Botões */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowThermalExport(false)}
+                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleThermalExport}
+                    disabled={isGeneratingThermal}
+                    className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  >
+                    {isGeneratingThermal ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                        Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-download mr-2"></i>
+                        Baixar Arquivo {thermalConfig.format}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal de Configurações Avançadas */}
         {showConfig && (

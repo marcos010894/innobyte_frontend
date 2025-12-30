@@ -34,13 +34,13 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       showOnlyForMaster: true, // Esta seção é só para master
       items: [
         { path: '/users', icon: 'fa-users', label: 'Usuários e Licenças' },
-        { path: '/history', icon: 'fa-history', label: 'Histórico' },
+        //{ path: '/history', icon: 'fa-history', label: 'Histórico' },
       ],
     },
     {
       section: 'Configurações',
       items: [
-        { path: '/settings', icon: 'fa-cog', label: 'Configurações' },
+        //{ path: '/settings', icon: 'fa-cog', label: 'Configurações' },
         { path: '/profile', icon: 'fa-user-circle', label: 'Perfil' },
       ],
     },

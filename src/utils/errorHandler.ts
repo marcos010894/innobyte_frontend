@@ -26,7 +26,7 @@ export const handleApiError = (error: AxiosError<ApiErrorResponse>): string => {
   // Erro de rede ou servidor não respondeu
   if (!error.response) {
     console.log('🔴 Erro de rede - sem resposta do servidor');
-    return 'Erro de conexão. Verifique se o backend está rodando em http://localhost:8001';
+    return 'Erro de conexão. Verifique se o backend está rodando em http://localhost:8000';
   }
 
   const status = error.response.status;
