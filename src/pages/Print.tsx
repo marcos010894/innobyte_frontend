@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -14,20 +14,19 @@ import { useAuth } from '@hooks/useAuth';
 import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
 import type { IntegracaoAPI } from '@/types/api.types';
-import type { ItemImportacaoEtiqueta } from '@/services/egestor.service';
 import {
   generateBatchThermalCommands,
   downloadThermalFile,
   THERMAL_FORMATS,
   COMMON_DPIS,
-  type ThermalPrinterFormat,
   type ThermalPrintConfig,
 } from '@/services/thermalPrinter.service';
 
 /**
  * Função auxiliar para renderizar um elemento do template no PDF
+ * @deprecated Mantida para referência futura - usar html2canvas ao invés
  */
-function renderElementToPDF(
+function _renderElementToPDF(
   pdf: jsPDF,
   element: LabelElement,
   offsetX: number,
@@ -245,7 +244,6 @@ const Print: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   
   // Estados para integração E-gestor
   const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
@@ -1123,8 +1121,6 @@ const Print: React.FC = () => {
       
       // Marcar impressão como bem-sucedida
       setLastPrintSuccess(true);
-      
-      const skipInfo = skipLabels && skipLabels > 0 ? `\n• ${skipLabels} etiquetas puladas` : '';
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
       alert('❌ Erro ao gerar PDF. Verifique o console para mais detalhes.');
