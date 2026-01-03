@@ -14,6 +14,7 @@ import { useAuth } from '@hooks/useAuth';
 import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
 import type { IntegracaoAPI } from '@/types/api.types';
+import type { ItemImportacaoEtiqueta } from '@/services/egestor.service';
 import {
   generateBatchThermalCommands,
   downloadThermalFile,
@@ -275,6 +276,23 @@ const Print: React.FC = () => {
     copies: 1,
   });
   const [isGeneratingThermal, setIsGeneratingThermal] = useState(false);
+  
+  // Estados para importação de etiquetas
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importMode, setImportMode] = useState<'nf' | 'sincronizacao'>('sincronizacao');
+  const [importNumeroNF, setImportNumeroNF] = useState('');
+  const [importSerieNF, setImportSerieNF] = useState('');
+  const [importCategoriaId, setImportCategoriaId] = useState<number | null>(null);
+  const [categorias, setCategorias] = useState<egestorService.EgestorCategoria[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [ultimaSincronizacao, setUltimaSincronizacao] = useState<egestorService.SincronizacaoEstoque | null>(null);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    message: string;
+    total: number;
+    estatisticas?: egestorService.EstatisticasSincronizacao;
+  } | null>(null);
+  const [lastPrintSuccess, setLastPrintSuccess] = useState(false);
   
   // Configuração de impressão
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
@@ -638,6 +656,205 @@ const Print: React.FC = () => {
     });
   };
 
+  // ===== FUNÇÕES DE IMPORTAÇÃO =====
+  
+  // Carregar categorias do E-gestor para filtro
+  const loadCategorias = async () => {
+    if (!integracaoEgestor) return;
+    
+    try {
+      // Carregar categorias
+      const result = await egestorService.getCategorias(integracaoEgestor.id);
+      if (result.success && result.data && result.data.data) {
+        setCategorias(result.data.data);
+      }
+      
+      // Carregar última sincronização
+      const sincResult = await egestorService.listarSincronizacoes(integracaoEgestor.id, 1);
+      if (sincResult.success && sincResult.data && sincResult.data.length > 0) {
+        setUltimaSincronizacao(sincResult.data[0]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    }
+  };
+
+  // Importar itens de NF de Compra
+  const handleImportNF = async () => {
+    if (!integracaoEgestor || !importNumeroNF.trim()) {
+      alert('Informe o número da nota fiscal');
+      return;
+    }
+    
+    setIsImporting(true);
+    setImportResult(null);
+    
+    try {
+      const result = await egestorService.importarNFCompra(
+        integracaoEgestor.id,
+        importNumeroNF.trim(),
+        importSerieNF.trim() || undefined
+      );
+      
+      if (result.success && result.data) {
+        const itensConvertidos = result.data.itens.map(
+          egestorService.converterItemImportadoParaImpressao
+        );
+        
+        // Adicionar produtos à lista
+        setProducts(prev => {
+          const produtosExistentes = new Set(prev.map(p => p.id));
+          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
+          return [...prev, ...novosProdutos as Product[]];
+        });
+        
+        // Selecionar todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+        
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[item.produto_id.toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+        
+        setImportResult({
+          success: true,
+          message: result.message || `Importados ${result.data.total_itens} itens da NF ${importNumeroNF}`,
+          total: result.data.total_quantidade,
+        });
+        
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 1500);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nota fiscal não encontrada ou sem itens',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar nota fiscal',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Importar via Sincronização de Estoque (compara diferenças)
+  const handleImportSincronizacao = async () => {
+    if (!integracaoEgestor) {
+      alert('Integração E-gestor não configurada');
+      return;
+    }
+    
+    setIsImporting(true);
+    setImportResult(null);
+    
+    try {
+      const result = await egestorService.importarViaSincronizacao(
+        integracaoEgestor.id,
+        true, // Sempre sincronizar antes de importar
+        importCategoriaId || undefined
+      );
+      
+      if (result.success && result.data && result.data.itens.length > 0) {
+        const itensConvertidos = result.data.itens.map(
+          egestorService.converterItemSincronizacaoParaImpressao
+        );
+        
+        // Adicionar produtos à lista
+        setProducts(prev => {
+          const produtosExistentes = new Set(prev.map(p => p.id));
+          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
+          return [...prev, ...novosProdutos as Product[]];
+        });
+        
+        // Selecionar todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+        
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[item.produto_id.toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+        
+        // Atualizar última sincronização
+        if (result.data.sincronizacao_id) {
+          const sincResult = await egestorService.listarSincronizacoes(integracaoEgestor.id, 1);
+          if (sincResult.success && sincResult.data && sincResult.data.length > 0) {
+            setUltimaSincronizacao(sincResult.data[0]);
+          }
+        }
+        
+        setImportResult({
+          success: true,
+          message: result.message || `Encontradas ${result.data.total_itens} entradas (${result.data.total_quantidade} etiquetas)`,
+          total: result.data.total_quantidade,
+          estatisticas: result.data.estatisticas,
+        });
+        
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 2000);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nenhuma entrada de estoque encontrada desde a última sincronização',
+          total: 0,
+          estatisticas: result.data?.estatisticas,
+        });
+      }
+    } catch (error: any) {
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao sincronizar estoque',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Excluir produtos selecionados da lista
+  const handleExcluirSelecionados = () => {
+    if (selectedProducts.size === 0) {
+      alert('Nenhum produto selecionado');
+      return;
+    }
+    
+    const confirmar = window.confirm(
+      `Deseja remover ${selectedProducts.size} item(s) da lista?`
+    );
+    
+    if (confirmar) {
+      setProducts(prev => prev.filter(p => !selectedProducts.has(p.id)));
+      setSelectedProducts(new Set());
+      setPrintQuantities(prev => {
+        const novo = { ...prev };
+        selectedProducts.forEach(id => delete novo[id]);
+        return novo;
+      });
+    }
+  };
+
+  // Limpar toda a lista
+  const handleLimparLista = () => {
+    const confirmar = window.confirm(
+      'Deseja limpar toda a lista de produtos?'
+    );
+    
+    if (confirmar) {
+      setProducts([]);
+      setSelectedProducts(new Set());
+      setPrintQuantities({});
+      setLastPrintSuccess(false);
+    }
+  };
+
   // Calcular totais (usando quantidades definidas)
   const totalLabels = getTotalLabelsCount();
   const labelsPerPage = printConfig.columns * printConfig.rows;
@@ -904,6 +1121,9 @@ const Print: React.FC = () => {
       const fileName = `etiquetas_${totalLabels}_unidades_${selectedProductsList.length}_produtos_${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
       
+      // Marcar impressão como bem-sucedida
+      setLastPrintSuccess(true);
+      
       const skipInfo = skipLabels && skipLabels > 0 ? `\n• ${skipLabels} etiquetas puladas` : '';
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
@@ -1012,8 +1232,67 @@ const Print: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Coluna Esquerda: Lista de Produtos */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Barra de Importação e Gerenciamento */}
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-sm p-4 text-white">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold">
+                    <i className="fas fa-file-import mr-2"></i>
+                    Importar Produtos para Etiquetas
+                  </h3>
+                  <p className="text-sm text-blue-100">
+                    Importe automaticamente de NF de Compra ou Movimentações de Estoque
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowImportModal(true);
+                    loadCategorias();
+                  }}
+                  disabled={!integracaoEgestor}
+                  className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <i className="fas fa-download mr-2"></i>
+                  Importar
+                </button>
+              </div>
+              {!integracaoEgestor && (
+                <p className="text-xs text-yellow-200 mt-2">
+                  <i className="fas fa-exclamation-triangle mr-1"></i>
+                  Configure a integração E-gestor para usar a importação
+                </p>
+              )}
+            </div>
+
             {/* Barra de Busca e Ações */}
             <div className="bg-white rounded-lg shadow-sm p-4">
+              {/* Contador e ações de seleção */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700">
+                    <i className="fas fa-list mr-2 text-primary"></i>
+                    Selecionados: <strong className="text-primary">{selectedProducts.size}</strong> / {products.length}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    ({totalLabels} etiquetas)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={selectAll}
+                    className="px-3 py-1.5 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  >
+                    ✅ Selecionar tudo
+                  </button>
+                  <button
+                    onClick={deselectAll}
+                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    ⬜ Desmarcar tudo
+                  </button>
+                </div>
+              </div>
+
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 relative">
                   <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
@@ -1026,18 +1305,24 @@ const Print: React.FC = () => {
                   />
                 </div>
                 <button
-                  onClick={selectAll}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  onClick={handleExcluirSelecionados}
+                  disabled={selectedProducts.size === 0}
+                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <i className="fas fa-check-double mr-2"></i>
-                  Selecionar Todos
+                  <i className="fas fa-trash mr-2"></i>
+                  Excluir Selecionados
                 </button>
                 <button
-                  onClick={deselectAll}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  onClick={handleLimparLista}
+                  disabled={products.length === 0}
+                  className={`px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    lastPrintSuccess 
+                      ? 'bg-green-500 text-white hover:bg-green-600' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
                 >
-                  <i className="fas fa-times mr-2"></i>
-                  Limpar
+                  <i className="fas fa-broom mr-2"></i>
+                  Limpar Lista
                 </button>
               </div>
               
@@ -1442,6 +1727,210 @@ const Print: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Modal de Importação de Produtos */}
+        {showImportModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">
+                    <i className="fas fa-file-import mr-2"></i>
+                    Importar para Etiquetas
+                  </h2>
+                  <button
+                    onClick={() => setShowImportModal(false)}
+                    className="text-white hover:bg-white/20 rounded-full p-2"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Seletor de modo de importação */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Importar de:
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setImportMode('sincronizacao')}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                        importMode === 'sincronizacao'
+                          ? 'border-purple-500 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 hover:border-purple-300'
+                      }`}
+                    >
+                      <i className="fas fa-sync-alt text-2xl mb-2"></i>
+                      <div className="font-medium">Entrada de Estoque</div>
+                      <div className="text-xs text-gray-500">Sincroniza e mostra diferenças</div>
+                    </button>
+                    <button
+                      onClick={() => setImportMode('nf')}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                        importMode === 'nf'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <i className="fas fa-file-invoice text-2xl mb-2"></i>
+                      <div className="font-medium">Nota Fiscal</div>
+                      <div className="text-xs text-gray-500">Importar de uma NF específica</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Formulário para Sincronização de Estoque */}
+                {importMode === 'sincronizacao' && (
+                  <div className="space-y-4">
+                    {/* Info sobre última sincronização */}
+                    {ultimaSincronizacao && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600">
+                          <i className="fas fa-history mr-2"></i>
+                          <strong>Última sincronização:</strong>{' '}
+                          {new Date(ultimaSincronizacao.data_sincronizacao).toLocaleString('pt-BR')}
+                        </p>
+                        <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                          <span>📦 {ultimaSincronizacao.total_produtos} produtos</span>
+                          <span>📥 {ultimaSincronizacao.total_entradas + ultimaSincronizacao.total_novos} entradas</span>
+                          <span>📤 {ultimaSincronizacao.total_saidas} saídas</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <p className="text-sm text-purple-700">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        <strong>Como funciona:</strong>
+                      </p>
+                      <ol className="text-xs text-purple-600 mt-2 space-y-1 list-decimal list-inside">
+                        <li>O sistema busca todos os produtos no E-gestor</li>
+                        <li>Compara com a última sincronização</li>
+                        <li>Mostra apenas os que <strong>aumentaram</strong> de estoque</li>
+                        <li>A quantidade de etiquetas = quantidade que entrou</li>
+                      </ol>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <i className="fas fa-tags mr-2"></i>
+                        Filtrar por Grupo/Categoria (opcional)
+                      </label>
+                      <select
+                        value={importCategoriaId || ''}
+                        onChange={(e) => setImportCategoriaId(e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">Todos os grupos</option>
+                        {categorias.map((cat) => (
+                          <option key={cat.codigo} value={cat.codigo}>
+                            {cat.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulário para NF de Compra */}
+                {importMode === 'nf' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <i className="fas fa-hashtag mr-2"></i>
+                        Número da Nota Fiscal *
+                      </label>
+                      <input
+                        type="text"
+                        value={importNumeroNF}
+                        onChange={(e) => setImportNumeroNF(e.target.value)}
+                        placeholder="Ex: 12345"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Série (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={importSerieNF}
+                        onChange={(e) => setImportSerieNF(e.target.value)}
+                        placeholder="Ex: 1"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-blue-700">
+                        <i className="fas fa-lightbulb mr-2"></i>
+                        <strong>Dica:</strong> A quantidade de cada item será a quantidade da nota.
+                        O preço de venda será buscado da nota ou do cadastro do produto.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Resultado da importação */}
+                {importResult && (
+                  <div className={`p-4 rounded-lg ${
+                    importResult.success 
+                      ? 'bg-green-50 border border-green-200' 
+                      : 'bg-yellow-50 border border-yellow-200'
+                  }`}>
+                    <div className={`flex items-center ${
+                      importResult.success ? 'text-green-700' : 'text-yellow-700'
+                    }`}>
+                      <i className={`fas ${importResult.success ? 'fa-check-circle' : 'fa-info-circle'} mr-2`}></i>
+                      <span>{importResult.message}</span>
+                    </div>
+                    {importResult.success && importResult.total > 0 && (
+                      <div className="text-green-600 text-sm mt-1">
+                        <i className="fas fa-tag mr-1"></i>
+                        Total de etiquetas: <strong>{importResult.total}</strong>
+                      </div>
+                    )}
+                    {importResult.estatisticas && (
+                      <div className="flex gap-3 mt-2 text-xs text-gray-600">
+                        <span>📥 {importResult.estatisticas.entradas} entradas</span>
+                        <span>🆕 {importResult.estatisticas.novos} novos</span>
+                        <span>📤 {importResult.estatisticas.saidas} saídas</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Botões */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowImportModal(false)}
+                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={importMode === 'nf' ? handleImportNF : handleImportSincronizacao}
+                    disabled={isImporting || (importMode === 'nf' && !importNumeroNF.trim())}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  >
+                    {isImporting ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin mr-2"></i>
+                        {importMode === 'sincronizacao' ? 'Sincronizando...' : 'Importando...'}
+                      </>
+                    ) : (
+                      <>
+                        <i className={`fas ${importMode === 'sincronizacao' ? 'fa-sync-alt' : 'fa-download'} mr-2`}></i>
+                        {importMode === 'sincronizacao' ? 'Sincronizar e Importar' : 'Importar'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal de Exportação Térmica */}
         {showThermalExport && (

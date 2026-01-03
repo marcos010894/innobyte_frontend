@@ -283,6 +283,285 @@ export const converterProdutoParaImpressao = (produto: EgestorProduto) => {
   };
 };
 
+// ===== TIPOS PARA IMPORTAÇÃO DE ETIQUETAS =====
+
+export interface ItemImportacaoEtiqueta {
+  produto_id: number;
+  codigo_produto?: string;
+  nome_produto: string;
+  referencia?: string;
+  codigo_barras?: string;
+  quantidade: number;
+  preco_venda: number;
+  categoria?: string;
+  categoria_id?: number;
+  origem?: string;  // "NF_COMPRA", "MOVIMENTACAO", "MANUAL"
+  documento?: string;
+}
+
+export interface ImportacaoEtiquetasResponse {
+  total_itens: number;
+  total_quantidade: number;
+  itens: ItemImportacaoEtiqueta[];
+  origem?: string;
+  documento?: string;
+}
+
+// ===== FUNÇÕES DE IMPORTAÇÃO PARA ETIQUETAS =====
+
+/**
+ * Importar itens de uma Nota Fiscal de Compra
+ */
+export const importarNFCompra = async (
+  integracaoId: number,
+  numeroNf: string,
+  serie?: string
+): Promise<ApiResponse<ImportacaoEtiquetasResponse>> => {
+  try {
+    const response = await api.post<{
+      success: boolean;
+      data: ImportacaoEtiquetasResponse;
+      message?: string;
+    }>(`/integracoes/${integracaoId}/egestor/importar/nf-compra`, {
+      numero_nf: numeroNf,
+      serie: serie || null,
+    });
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: handleApiError(error),
+    };
+  }
+};
+
+/**
+ * Importar itens de Movimentações de Estoque (Entradas)
+ */
+export const importarMovimentacaoEstoque = async (
+  integracaoId: number,
+  dataInicial: Date,
+  dataFinal: Date,
+  categoriaId?: number,
+  agruparPorProduto: boolean = true
+): Promise<ApiResponse<ImportacaoEtiquetasResponse>> => {
+  try {
+    const response = await api.post<{
+      success: boolean;
+      data: ImportacaoEtiquetasResponse;
+      message?: string;
+    }>(`/integracoes/${integracaoId}/egestor/importar/movimentacao`, {
+      data_inicial: dataInicial.toISOString(),
+      data_final: dataFinal.toISOString(),
+      categoria_id: categoriaId || null,
+      agrupar_por_produto: agruparPorProduto,
+    });
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: handleApiError(error),
+    };
+  }
+};
+
+/**
+ * Converter item importado para formato do sistema de impressão
+ */
+export const converterItemImportadoParaImpressao = (item: ItemImportacaoEtiqueta) => {
+  return {
+    id: item.produto_id.toString(),
+    name: item.nome_produto,
+    code: item.codigo_produto || item.produto_id.toString(),
+    price: item.preco_venda || 0,
+    quantity: item.quantidade,
+    category: item.categoria || 'Sem categoria',
+    barcode: item.codigo_barras || '',
+    description: item.nome_produto,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    // Campos extras para rastreabilidade
+    origem: item.origem,
+    documento: item.documento,
+    referencia: item.referencia,
+  };
+};
+
+
+// ===== SINCRONIZAÇÃO DE ESTOQUE =====
+
+export interface SincronizacaoEstoque {
+  id: number;
+  data_sincronizacao: string;
+  total_produtos: number;
+  total_entradas: number;
+  total_saidas: number;
+  total_novos: number;
+  observacao?: string;
+}
+
+export interface EstatisticasSincronizacao {
+  entradas: number;
+  saidas: number;
+  novos: number;
+  sem_alteracao: number;
+}
+
+export interface ItemSincronizacao {
+  produto_id: number;
+  codigo_produto: string;
+  nome_produto: string;
+  codigo_barras?: string;
+  categoria?: string;
+  quantidade: number;
+  preco_venda?: number;
+  preco_custo?: number;
+  origem: string;
+  tipo_movimento: string;
+  quantidade_atual: number;
+  quantidade_anterior: number;
+}
+
+export interface SincronizacaoResponse {
+  sincronizacao_id: number;
+  data_sincronizacao: string;
+  total_produtos: number;
+  estatisticas: EstatisticasSincronizacao;
+}
+
+export interface ImportacaoSincronizacaoResponse {
+  total_itens: number;
+  total_quantidade: number;
+  itens: ItemSincronizacao[];
+  origem: string;
+  sincronizacao_id: number;
+  data_sincronizacao?: string;
+  estatisticas?: EstatisticasSincronizacao;
+}
+
+/**
+ * Sincroniza estoque do E-gestor e calcula diferenças
+ */
+export const sincronizarEstoque = async (
+  integracaoId: number,
+  observacao?: string
+): Promise<ApiResponse<SincronizacaoResponse>> => {
+  try {
+    const response = await api.post<{
+      success: boolean;
+      data: SincronizacaoResponse;
+      message?: string;
+    }>(`/integracoes/${integracaoId}/egestor/sincronizar-estoque`, null, {
+      params: { observacao }
+    });
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: handleApiError(error),
+    };
+  }
+};
+
+/**
+ * Lista histórico de sincronizações
+ */
+export const listarSincronizacoes = async (
+  integracaoId: number,
+  limite: number = 10
+): Promise<ApiResponse<SincronizacaoEstoque[]>> => {
+  try {
+    const response = await api.get<{
+      success: boolean;
+      data: SincronizacaoEstoque[];
+    }>(`/integracoes/${integracaoId}/egestor/sincronizacoes`, {
+      params: { limite }
+    });
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: handleApiError(error),
+    };
+  }
+};
+
+/**
+ * Importa entradas de estoque via sincronização
+ * Este é o método principal para importar etiquetas por diferença de estoque
+ */
+export const importarViaSincronizacao = async (
+  integracaoId: number,
+  sincronizarAgora: boolean = true,
+  categoriaId?: number
+): Promise<ApiResponse<ImportacaoSincronizacaoResponse>> => {
+  try {
+    const response = await api.post<{
+      success: boolean;
+      data: ImportacaoSincronizacaoResponse;
+      message?: string;
+    }>(`/integracoes/${integracaoId}/egestor/importar/sincronizacao`, null, {
+      params: {
+        sincronizar_agora: sincronizarAgora,
+        categoria_id: categoriaId || undefined
+      }
+    });
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: handleApiError(error),
+    };
+  }
+};
+
+/**
+ * Converter item de sincronização para formato do sistema de impressão
+ */
+export const converterItemSincronizacaoParaImpressao = (item: ItemSincronizacao) => {
+  return {
+    id: item.produto_id.toString(),
+    name: item.nome_produto,
+    code: item.codigo_produto || item.produto_id.toString(),
+    price: item.preco_venda || 0,
+    quantity: item.quantidade,
+    category: item.categoria || 'Sem categoria',
+    barcode: item.codigo_barras || '',
+    description: item.nome_produto,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    // Campos extras
+    origem: item.origem,
+    tipo_movimento: item.tipo_movimento,
+    quantidade_atual: item.quantidade_atual,
+    quantidade_anterior: item.quantidade_anterior,
+  };
+};
+
 export default {
   getAccessToken,
   getEmpresa,
@@ -292,4 +571,12 @@ export default {
   sincronizarProdutos,
   testarConexao,
   converterProdutoParaImpressao,
+  importarNFCompra,
+  importarMovimentacaoEstoque,
+  converterItemImportadoParaImpressao,
+  // Novas funções de sincronização
+  sincronizarEstoque,
+  listarSincronizacoes,
+  importarViaSincronizacao,
+  converterItemSincronizacaoParaImpressao,
 };
