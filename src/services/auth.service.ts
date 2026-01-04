@@ -64,6 +64,11 @@ export const loginCliente = async (email: string, password: string): Promise<Api
     localStorage.setItem(TOKEN_KEY, response.data.access_token);
     localStorage.setItem(USER_TYPE_KEY, 'cliente');
     localStorage.setItem(IS_AUTHENTICATED_KEY, 'true');
+    
+    // Salva os dados do usuário (incluindo id_empresa e empresas)
+    if (response.data.user) {
+      localStorage.setItem(USER_DATA_KEY, JSON.stringify(response.data.user));
+    }
 
     console.log('✅ Login Cliente realizado com sucesso');
     const userData: any = response.data.user;

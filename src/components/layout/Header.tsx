@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 interface HeaderProps {
@@ -7,7 +6,6 @@ interface HeaderProps {
 }
 
 const Header = ({ onMenuClick }: HeaderProps) => {
-  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -45,12 +43,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
 
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Notificações */}
-          <div className="relative">
-            <button className="flex text-gray-600 focus:outline-none p-2 hover:bg-gray-100 rounded-md">
-              <i className="fas fa-bell text-lg sm:text-xl"></i>
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
-            </button>
-          </div>
+
 
           {/* Menu do usuário */}
           <div className="relative ml-1 sm:ml-2">
@@ -73,20 +66,6 @@ const Header = ({ onMenuClick }: HeaderProps) => {
                   onClick={() => setShowUserMenu(false)}
                 ></div>
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-20">
-                  <button 
-                    onClick={() => navigate('/profile')}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                  >
-                    <i className="fas fa-user text-gray-500"></i>
-                    Meu Perfil
-                  </button>
-                  <button 
-                    onClick={() => navigate('/settings')}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                  >
-                    <i className="fas fa-cog text-gray-500"></i>
-                    Configurações
-                  </button>
                   <hr className="my-2" />
                   <button 
                     onClick={handleLogout}

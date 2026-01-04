@@ -160,24 +160,40 @@ class TemplateService {
 
   /**
    * Converte LabelTemplate para CreateTemplateRequest (para API)
+   * @param template Template a ser convertido
+   * @param includeCompartilhado Se deve incluir o campo compartilhado (apenas master)
    */
-  convertToCreateRequest(template: LabelTemplate): CreateTemplateRequest {
-    // Obter id_empresa do localStorage (ou de onde você armazena os dados do usuário)
-    // Por enquanto, usar um valor padrão. Ajuste conforme sua implementação de auth
-    const userData = localStorage.getItem('user');
-    let id_empresa = 1; // Valor padrão
+  convertToCreateRequest(template: LabelTemplate, includeCompartilhado: boolean = false): CreateTemplateRequest {
+    // Obter id_empresa do localStorage - prioriza user_data (novo) ou user (legado)
+    const userData = localStorage.getItem('user_data') || localStorage.getItem('user');
+    let id_empresa: number | null = null;
     
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        id_empresa = user.id_empresa || 1;
+        // Primeiro tenta id_empresa direto, depois primeira empresa da lista
+        if (user.id_empresa) {
+          id_empresa = user.id_empresa;
+        } else if (user.empresas && user.empresas.length > 0) {
+          id_empresa = user.empresas[0].id;
+        }
       } catch (err) {
         console.error('Erro ao parsear dados do usuário:', err);
       }
     }
     
-    return {
-      id_empresa,
+    // Se não encontrou empresa, usa 1 apenas para master (fallback)
+    const userType = localStorage.getItem('user_type');
+    if (!id_empresa && userType === 'master') {
+      id_empresa = 1;
+    }
+    
+    if (!id_empresa) {
+      console.error('⚠️ Nenhuma empresa encontrada para o usuário. Verifique o login.');
+    }
+    
+    const request: CreateTemplateRequest = {
+      id_empresa: id_empresa || 1,
       nome: template.config.name,
       descricao: template.config.description,
       categoria: template.category,
@@ -185,6 +201,13 @@ class TemplateService {
       elements: template.elements,
       thumbnail: template.thumbnail,
     };
+    
+    // Apenas inclui compartilhado se permitido (master)
+    if (includeCompartilhado) {
+      request.compartilhado = template.compartilhado || false;
+    }
+    
+    return request;
   }
 }
 

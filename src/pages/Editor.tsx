@@ -251,11 +251,12 @@ const Editor: React.FC = () => {
           console.warn('⚠️ Cliente tentou salvar como compartilhado - bloqueado!');
         }
         
+        // Passa canShare para indicar se deve incluir compartilhado
         const request = templateService.convertToCreateRequest({
           ...template,
           thumbnail,
           compartilhado,
-        });
+        }, canShare);
         
         const response = await templateService.create(request);
         alert('✅ Template criado com sucesso!');
@@ -285,15 +286,23 @@ const Editor: React.FC = () => {
           console.warn('⚠️ Cliente tentou atualizar como compartilhado - bloqueado!');
         }
         
-        await templateService.update(template.id, {
+        // Monta os dados para atualização
+        // IMPORTANTE: Não envia compartilhado se não for master (backend bloqueia)
+        const updateData: any = {
           nome: template.config.name,
           descricao: template.config.description,
           categoria: template.category,
           config: template.config,
           elements: template.elements,
           thumbnail,
-          compartilhado,
-        });
+        };
+        
+        // Apenas master pode enviar o campo compartilhado
+        if (canShare) {
+          updateData.compartilhado = compartilhado;
+        }
+        
+        await templateService.update(template.id, updateData);
         alert('✅ Template atualizado com sucesso!');
       }
     } catch (err: any) {
