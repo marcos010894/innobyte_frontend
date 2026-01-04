@@ -72,6 +72,7 @@ const Print: React.FC = () => {
   const [importNumeroNF, setImportNumeroNF] = useState('');
   const [importSerieNF, setImportSerieNF] = useState('');
   const [importCategoriaId, setImportCategoriaId] = useState<number | null>(null);
+  const [diasComparacao, setDiasComparacao] = useState<number | null>(null); // null = última sincronização
   const [categorias, setCategorias] = useState<egestorService.EgestorCategoria[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [ultimaSincronizacao, setUltimaSincronizacao] = useState<egestorService.SincronizacaoEstoque | null>(null);
@@ -544,7 +545,8 @@ const Print: React.FC = () => {
       const result = await egestorService.importarViaSincronizacao(
         integracaoEgestor.id,
         true, // Sempre sincronizar antes de importar
-        importCategoriaId || undefined
+        importCategoriaId || undefined,
+        diasComparacao || undefined // Dias para comparação
       );
       
       if (result.success && result.data && result.data.itens.length > 0) {
@@ -1614,6 +1616,33 @@ const Print: React.FC = () => {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <i className="fas fa-calendar-alt mr-2"></i>
+                        Período de Comparação
+                      </label>
+                      <select
+                        value={diasComparacao === null ? '' : diasComparacao}
+                        onChange={(e) => setDiasComparacao(e.target.value === '' ? null : parseInt(e.target.value))}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                      >
+                        <option value="">Última sincronização</option>
+                        <option value="1">Desde ontem (1 dia)</option>
+                        <option value="3">Últimos 3 dias</option>
+                        <option value="7">Última semana (7 dias)</option>
+                        <option value="15">Últimos 15 dias</option>
+                        <option value="30">Último mês (30 dias)</option>
+                        <option value="60">Últimos 2 meses</option>
+                        <option value="90">Últimos 3 meses</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {diasComparacao === null 
+                          ? 'Compara com a sincronização anterior mais recente'
+                          : `Compara estoque atual com o de ${diasComparacao} dia(s) atrás`
+                        }
+                      </p>
                     </div>
                   </div>
                 )}

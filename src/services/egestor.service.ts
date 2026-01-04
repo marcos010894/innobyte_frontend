@@ -508,11 +508,19 @@ export const listarSincronizacoes = async (
 /**
  * Importa entradas de estoque via sincronização
  * Este é o método principal para importar etiquetas por diferença de estoque
+ * 
+ * @param integracaoId ID da integração E-gestor
+ * @param sincronizarAgora Se deve fazer nova sincronização antes
+ * @param categoriaId Filtrar por categoria (opcional)
+ * @param diasComparacao Comparar com sincronização de X dias atrás (opcional)
+ * @param sincronizacaoBaseId ID específico da sincronização para comparar (opcional)
  */
 export const importarViaSincronizacao = async (
   integracaoId: number,
   sincronizarAgora: boolean = true,
-  categoriaId?: number
+  categoriaId?: number,
+  diasComparacao?: number,
+  sincronizacaoBaseId?: number
 ): Promise<ApiResponse<ImportacaoSincronizacaoResponse>> => {
   try {
     const response = await api.post<{
@@ -522,7 +530,9 @@ export const importarViaSincronizacao = async (
     }>(`/integracoes/${integracaoId}/egestor/importar/sincronizacao`, null, {
       params: {
         sincronizar_agora: sincronizarAgora,
-        categoria_id: categoriaId || undefined
+        categoria_id: categoriaId || undefined,
+        dias_comparacao: diasComparacao || undefined,
+        sincronizacao_base_id: sincronizacaoBaseId || undefined
       }
     });
 
