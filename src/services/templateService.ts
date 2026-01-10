@@ -1,5 +1,5 @@
 import api from './api';
-import type { LabelTemplate, LabelConfig, LabelElement } from '@/types/label.types';
+import type { LabelTemplate, LabelConfig, LabelElement, PagePrintConfig } from '@/types/label.types';
 
 export interface CreateTemplateRequest {
   id_empresa: number;
@@ -9,6 +9,7 @@ export interface CreateTemplateRequest {
   config: LabelConfig;
   elements: LabelElement[];
   thumbnail?: string;
+  page_print_config?: PagePrintConfig;
   compartilhado?: boolean;
 }
 
@@ -19,6 +20,7 @@ export interface UpdateTemplateRequest {
   config?: LabelConfig;
   elements?: LabelElement[];
   thumbnail?: string;
+  page_print_config?: PagePrintConfig;
   compartilhado?: boolean;
 }
 
@@ -40,6 +42,7 @@ export interface TemplateResponse {
   config: LabelConfig;
   elements: LabelElement[];
   thumbnail?: string;
+  page_print_config?: PagePrintConfig;
   compartilhado: boolean;
   created_at: string;
   updated_at: string;
@@ -150,6 +153,7 @@ class TemplateService {
       thumbnail: response.thumbnail,
       category: response.categoria,
       compartilhado: response.compartilhado || false,
+      pagePrintConfig: response.page_print_config,
     };
     
     console.log('✅ Template convertido:', converted);
@@ -200,6 +204,7 @@ class TemplateService {
       config: template.config,
       elements: template.elements,
       thumbnail: template.thumbnail,
+      page_print_config: template.pagePrintConfig,
     };
     
     // Apenas inclui compartilhado se permitido (master)

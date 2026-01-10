@@ -5,9 +5,10 @@ import ElementsToolbar from '@/components/labels/ElementsToolbar';
 import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
 import AdvancedConfigModal from '@/components/labels/AdvancedConfigModal';
+import PagePrintConfigPanel from '@/components/labels/PagePrintConfigPanel';
 import templateService from '@/services/templateService';
 import { useAuth } from '@/hooks/useAuth';
-import type { LabelTemplate, LabelConfig, LabelElement, ElementType } from '@/types/label.types';
+import type { LabelTemplate, LabelConfig, LabelElement, ElementType, PagePrintConfig } from '@/types/label.types';
 import { COMMON_LABEL_SIZES as LABEL_SIZES } from '@/types/label.types';
 
 const Editor: React.FC = () => {
@@ -51,6 +52,7 @@ const Editor: React.FC = () => {
   const [zoom, setZoom] = useState(2); // Zoom inicial ainda maior para melhor visualização
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
+  const [showPagePrintConfig, setShowPagePrintConfig] = useState(false);
   const [showVariablesHelp, setShowVariablesHelp] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -295,6 +297,7 @@ const Editor: React.FC = () => {
           config: template.config,
           elements: template.elements,
           thumbnail,
+          page_print_config: template.pagePrintConfig, // INCLUIR configuração de impressão
         };
         
         // Apenas master pode enviar o campo compartilhado
@@ -563,6 +566,15 @@ const Editor: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setShowPagePrintConfig(true)}
+            className="p-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-xs hover:from-green-600 hover:to-green-700"
+            title="Configuração de Página/Impressão"
+          >
+            <i className="fas fa-print"></i>
+            <span className="ml-1 hidden md:inline text-xs">Impressão</span>
+          </button>
+
+          <button
             onClick={() => setShowVariablesHelp(true)}
             className="p-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg text-xs hover:from-purple-600 hover:to-purple-700"
             title="Variáveis Disponíveis (${nome}, ${codigo}, etc.)"
@@ -726,6 +738,35 @@ const Editor: React.FC = () => {
           onUpdate={handleUpdateConfig}
           onClose={() => setShowAdvancedConfig(false)}
         />
+      )}
+
+      {/* Modal de Configuração de Página/Impressão */}
+      {showPagePrintConfig && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <PagePrintConfigPanel
+                config={template.pagePrintConfig}
+                labelConfig={template.config}
+                onChange={(newConfig: PagePrintConfig) => {
+                  setTemplate(prev => ({
+                    ...prev,
+                    pagePrintConfig: newConfig,
+                  }));
+                }}
+              />
+              
+              <div className="mt-6 pt-4 border-t flex justify-end gap-3">
+                <button
+                  onClick={() => setShowPagePrintConfig(false)}
+                  className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal de Ajuda - Variáveis Disponíveis */}

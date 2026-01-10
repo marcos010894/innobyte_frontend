@@ -7,6 +7,7 @@ import type { Product, PrintConfig, PrintPreset } from '@/types/product.types';
 import { PRINT_PRESETS } from '@/types/product.types';
 import type { LabelTemplate, LabelElement } from '@/types/label.types';
 import { replaceTemplateVariables } from '@/utils/templateVariables';
+import { generateTemplateSubtitle } from '@/types/label.types';
 import templateService from '@/services/templateService';
 import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
@@ -86,6 +87,14 @@ const Print: React.FC = () => {
   
   // Configuração de impressão
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
+    name: 'Personalizado',
+    // Modo de impressão
+    printMode: 'auto', // 'grid' = layout manual, 'auto' = calcula automaticamente
+    // Tamanho da página
+    pageWidth: 210,
+    pageHeight: 297,
+    pageFormat: 'a4',
+    // Layout
     columns: 3,
     rows: 8,
     spacingHorizontal: 2,
@@ -269,8 +278,62 @@ const Print: React.FC = () => {
     loadFullTemplate();
   }, [selectedTemplate]);
 
-  // Calcular layout automaticamente baseado no tamanho da etiqueta
+  // Carregar configuração de impressão do template (se existir) ou calcular automaticamente
   const calculateLayout = (template: LabelTemplate) => {
+    // SE o template tem pagePrintConfig, usar diretamente
+    if (template.pagePrintConfig) {
+      console.log('📋 Usando configuração de impressão salva no template:', template.pagePrintConfig);
+      
+      const ppc = template.pagePrintConfig;
+      const isThermal = ppc.pageSizeType === 'altura-etiqueta';
+      
+      // Determinar tamanho da página
+      let pageWidth = 210;
+      let pageHeight = 297;
+      
+      if (ppc.pageSizeType === 'a4') {
+        pageWidth = 210;
+        pageHeight = 297;
+      } else if (ppc.pageSizeType === 'carta') {
+        pageWidth = 215.9;
+        pageHeight = 279.4;
+      } else if (ppc.pageSizeType === 'altura-etiqueta') {
+        // Térmica: página tem altura da etiqueta
+        pageWidth = template.config.width * (ppc.columns || 1) + (ppc.marginLeft || 0) + (ppc.spacingHorizontal || 0) * ((ppc.columns || 1) - 1);
+        pageHeight = template.config.height;
+      } else if (ppc.pageSizeType === 'personalizado') {
+        pageWidth = ppc.customPageWidth || 210;
+        pageHeight = ppc.customPageHeight || 297;
+      }
+      
+      // Atualizar printConfig com valores do template
+      setPrintConfig(prev => ({
+        ...prev,
+        printMode: isThermal ? 'auto' : 'grid',
+        pageWidth,
+        pageHeight,
+        pageFormat: ppc.pageSizeType === 'a4' || ppc.pageSizeType === 'carta' ? 'a4' : 'custom',
+        columns: ppc.columns,
+        rows: ppc.rows || 1,
+        marginTop: ppc.marginTop || 0,
+        marginBottom: ppc.marginBottom || 0,
+        marginLeft: ppc.marginLeft || 0,
+        marginRight: ppc.marginRight || 0,
+        spacingHorizontal: ppc.spacingHorizontal || 0,
+        spacingVertical: ppc.spacingVertical || 0,
+        skipLabels: ppc.skipLabels || 0,
+        showBorders: ppc.showBorders || false,
+        labelWidth: template.config.width,
+        labelHeight: template.config.height,
+        unit: template.config.unit === 'px' ? 'mm' : template.config.unit,
+      }));
+      
+      return;
+    }
+    
+    // SE não tem pagePrintConfig, calcular automaticamente (legado)
+    console.log('🔄 Template sem configuração de impressão, calculando automaticamente...');
+    
     // Dimensões da folha A4 em mm
     const a4Width = 210;
     const a4Height = 297;
@@ -828,19 +891,49 @@ const Print: React.FC = () => {
         return;
       }
 
-      // Criar PDF em formato A4
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: template.config.unit || printConfig.unit,
-        format: 'a4',
-      });
-
-      // Usar dimensões do template, não do printConfig
+      // Usar dimensões do template
       const labelWidth = template.config.width;
       const labelHeight = template.config.height;
-      const { columns, rows, spacingHorizontal, spacingVertical, skipLabels } = printConfig;
+      const { spacingHorizontal, spacingVertical, skipLabels, pageWidth, pageHeight, pageFormat, printMode } = printConfig;
+      let { columns, rows } = printConfig;
       
-      console.log('⚙️ Configuração de impressão:', { columns, rows, labelWidth, labelHeight, skipLabels });
+      // Calcular dimensões do PDF (inicializar com valores padrão)
+      let pdfFormat: string | [number, number] = 'a4';
+      let pdfOrientation: 'portrait' | 'landscape' = 'portrait';
+      const effectiveMarginTop = printConfig.marginTop;
+      const effectiveMarginLeft = printConfig.marginLeft;
+      
+      // Modos de impressão
+      const isAutoMode = printMode === 'auto';
+      
+      if (isAutoMode) {
+        // Modo AUTO: cada página do PDF tem o tamanho exato da etiqueta
+        pdfFormat = [labelWidth, labelHeight];
+        pdfOrientation = labelWidth > labelHeight ? 'landscape' : 'portrait';
+        columns = 1;
+        rows = 1;
+        console.log('🎯 Modo AUTO: página =', labelWidth, 'x', labelHeight, 'mm (tamanho exato da etiqueta)');
+      } else {
+        // Modo GRID: usar página A4 ou personalizada com layout de grade
+        if (pageFormat === 'custom' || (pageWidth !== 210 || pageHeight !== 297)) {
+          pdfFormat = [pageWidth, pageHeight];
+          pdfOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
+          console.log('📐 Modo GRID - Página personalizada:', pageWidth, 'x', pageHeight, 'mm');
+        } else {
+          pdfFormat = 'a4';
+          pdfOrientation = 'portrait';
+          console.log('📄 Modo GRID - Página A4 padrão');
+        }
+      }
+
+      // Criar PDF com formato dinâmico
+      const pdf = new jsPDF({
+        orientation: pdfOrientation,
+        unit: printConfig.unit || 'mm',
+        format: pdfFormat,
+      });
+      
+      console.log('⚙️ Configuração de impressão:', { columns, rows, labelWidth, labelHeight, skipLabels, pageWidth, pageHeight, printMode });
       console.log('📏 Dimensões do template:', { width: template.config.width, height: template.config.height, unit: template.config.unit });
       const selectedProductsList = Array.from(selectedProducts).map(id => 
         products.find(p => p.id === id)
@@ -849,6 +942,7 @@ const Print: React.FC = () => {
       let currentPage = 1;
       // Começar do índice de etiquetas puladas (skipLabels ou 0)
       let labelIndex = skipLabels || 0;
+      let totalLabelsPrinted = 0;
 
       console.log('📋 Produtos selecionados:', selectedProductsList);
 
@@ -876,32 +970,53 @@ const Print: React.FC = () => {
         
         // Imprimir a quantidade de etiquetas definida para este produto
         for (let copy = 0; copy < quantity; copy++) {
-          // Calcular posição na grade
-          const col = labelIndex % columns;
-          const row = Math.floor((labelIndex % (columns * rows)) / columns);
           
-          // Se começou uma nova página, adiciona página (exceto na primeira)
-          if (labelIndex > 0 && labelIndex % (columns * rows) === 0) {
-            pdf.addPage();
-            currentPage++;
-          }
+          if (isAutoMode) {
+            // === MODO AUTO: Uma etiqueta por página (tamanho exato da etiqueta) ===
+            if (totalLabelsPrinted > 0) {
+              pdf.addPage();
+              currentPage++;
+            }
+            
+            // Etiqueta na posição (0, 0) ocupando toda a página
+            if (printConfig.showBorders) {
+              pdf.setDrawColor(200, 200, 200);
+              pdf.rect(0, 0, labelWidth, labelHeight);
+            }
+            
+            pdf.addImage(labelImage, 'PNG', 0, 0, labelWidth, labelHeight);
+            console.log(`📍 Etiqueta ${totalLabelsPrinted + 1} - Página ${currentPage} (${labelWidth}x${labelHeight}mm)`);
+            
+          } else {
+            // === MODO GRID: Várias etiquetas por página A4 ===
+            const col = labelIndex % columns;
+            const row = Math.floor((labelIndex % (columns * rows)) / columns);
+            
+            // Se começou uma nova página, adiciona página (exceto na primeira)
+            if (labelIndex > 0 && labelIndex % (columns * rows) === 0) {
+              pdf.addPage();
+              currentPage++;
+            }
 
-          // Calcular posição X e Y
-          const x = col * (labelWidth + spacingHorizontal) + printConfig.marginLeft;
-          const y = row * (labelHeight + spacingVertical) + printConfig.marginTop;
+            // Calcular posição X e Y
+            const x = col * (labelWidth + spacingHorizontal) + effectiveMarginLeft;
+            const y = row * (labelHeight + spacingVertical) + effectiveMarginTop;
+            
+            console.log(`📍 Etiqueta ${totalLabelsPrinted + 1}: x=${x.toFixed(1)}, y=${y.toFixed(1)}, col=${col}, row=${row}, página ${currentPage}`);
+
+            // Desenhar borda se configurado
+            if (printConfig.showBorders) {
+              pdf.setDrawColor(200, 200, 200);
+              pdf.rect(x, y, labelWidth, labelHeight);
+            }
+            
+            // Adicionar a imagem da etiqueta ao PDF
+            pdf.addImage(labelImage, 'PNG', x, y, labelWidth, labelHeight);
+            
+            labelIndex++;
+          }
           
-          console.log(`📍 Posição da etiqueta: x=${x}, y=${y}, col=${col}, row=${row}, cópia ${copy + 1}/${quantity}`);
-
-          // Desenhar borda se configurado
-          if (printConfig.showBorders) {
-            pdf.setDrawColor(200, 200, 200);
-            pdf.rect(x, y, labelWidth, labelHeight);
-          }
-
-          // Adicionar a imagem da etiqueta ao PDF
-          pdf.addImage(labelImage, 'PNG', x, y, labelWidth, labelHeight);
-
-          labelIndex++;
+          totalLabelsPrinted++;
         }
       }
 
@@ -1383,66 +1498,109 @@ const Print: React.FC = () => {
                 <i className="fas fa-file-invoice mr-2 text-primary"></i>
                 Template de Etiqueta
               </h3>
-              <select
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-primary"
-              >
-                <option value="">Selecione um template...</option>
+              
+              {/* Lista de templates em cards em vez de select */}
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {templates.length === 0 && (
+                  <p className="text-sm text-gray-500 p-3 bg-gray-50 rounded-lg">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    Crie um template no Editor primeiro
+                  </p>
+                )}
                 {templates.map((template) => {
+                  const isSelected = selectedTemplate === template.id;
+                  const subtitle = generateTemplateSubtitle(template);
                   const elementCount = template.elements?.length || 0;
-                  const status = elementCount === 0 ? '⚠️ Vazio' : `✅ ${elementCount} elementos`;
+                  const hasConfig = !!template.pagePrintConfig;
+                  
                   return (
-                    <option key={template.id} value={template.id}>
-                      {template.config.name} - {status} ({template.config.width}×{template.config.height}{template.config.unit})
-                    </option>
+                    <button
+                      key={template.id}
+                      onClick={() => setSelectedTemplate(template.id)}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                        isSelected 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 truncate">
+                              {template.config.name}
+                            </span>
+                            {hasConfig && (
+                              <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                                ✓ Pronto
+                              </span>
+                            )}
+                            {!hasConfig && (
+                              <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">
+                                Sem config
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {subtitle}
+                          </div>
+                          {elementCount === 0 && (
+                            <div className="text-xs text-amber-600 mt-1">
+                              ⚠️ Template vazio
+                            </div>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <i className="fas fa-check-circle text-primary"></i>
+                        )}
+                      </div>
+                    </button>
                   );
                 })}
-              </select>
-              {templates.length === 0 && (
-                <p className="text-xs text-gray-500 mt-2">
-                  <i className="fas fa-info-circle mr-1"></i>
-                  Crie um template no Editor primeiro
-                </p>
-              )}
+              </div>
+              
               {selectedTemplateData && selectedTemplateData.elements?.length === 0 && (
                 <p className="text-xs text-amber-600 mt-2 bg-amber-50 p-2 rounded">
                   <i className="fas fa-exclamation-triangle mr-1"></i>
-                  <strong>Template vazio!</strong> Adicione elementos (texto com ${'{'}nome{'}'}, ${'{'}preco{'}'}, etc.) no Editor
+                  <strong>Template vazio!</strong> Adicione elementos no Editor
                 </p>
               )}
               
-              {/* Informações da etiqueta selecionada */}
-              {selectedTemplateData && (
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="text-sm font-semibold text-blue-900 mb-2">
-                    📏 Dimensões da Etiqueta
+              {/* Informações da configuração do template */}
+              {selectedTemplateData && selectedTemplateData.pagePrintConfig && (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <h4 className="text-sm font-semibold text-green-900 mb-2 flex items-center gap-2">
+                    <i className="fas fa-check-circle"></i>
+                    Configuração de Impressão Salva
                   </h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-blue-700">Largura:</span>
-                      <span className="ml-1 font-semibold text-blue-900">
-                        {selectedTemplateData.config.width}{selectedTemplateData.config.unit}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-blue-700">Altura:</span>
-                      <span className="ml-1 font-semibold text-blue-900">
-                        {selectedTemplateData.config.height}{selectedTemplateData.config.unit}
-                      </span>
-                    </div>
-                    <div className="col-span-2 mt-1 pt-2 border-t border-blue-200">
-                      <span className="text-blue-700">Layout calculado:</span>
-                      <span className="ml-1 font-semibold text-blue-900">
-                        {printConfig.columns}×{printConfig.rows} = {printConfig.columns * printConfig.rows} etiquetas/página
-                      </span>
-                    </div>
+                  <div className="text-xs text-green-700">
+                    {generateTemplateSubtitle(selectedTemplateData)}
+                  </div>
+                  <p className="text-xs text-green-600 mt-2 italic">
+                    As configurações já estão definidas no template. Basta imprimir!
+                  </p>
+                </div>
+              )}
+              
+              {selectedTemplateData && !selectedTemplateData.pagePrintConfig && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <h4 className="text-sm font-semibold text-yellow-900 mb-2 flex items-center gap-2">
+                    <i className="fas fa-exclamation-triangle"></i>
+                    Template sem configuração de impressão
+                  </h4>
+                  <p className="text-xs text-yellow-700">
+                    Configure a impressão no Editor de Etiquetas (botão "Impressão") para salvar as configurações junto com o template.
+                  </p>
+                  <div className="mt-2 pt-2 border-t border-yellow-200">
+                    <p className="text-xs text-yellow-600">
+                      <strong>Layout calculado automaticamente:</strong> {printConfig.columns}×{printConfig.rows} = {printConfig.columns * printConfig.rows} etiquetas/página
+                    </p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Presets de Impressão */}
+            {/* Presets de Impressão - só mostra se template NÃO tem pagePrintConfig */}
+            {(!selectedTemplateData?.pagePrintConfig) && (
             <div className="bg-white rounded-lg shadow-sm p-4">
               <h3 className="font-semibold text-gray-900 mb-3">
                 <i className="fas fa-magic mr-2 text-primary"></i>
@@ -1462,6 +1620,7 @@ const Print: React.FC = () => {
                 ))}
               </div>
             </div>
+            )}
 
             {/* Botões de Ação */}
             <div className="space-y-3">
@@ -1475,6 +1634,8 @@ const Print: React.FC = () => {
                 Preview e Editar Etiqueta
               </button>
 
+              {/* Botão Config Avançadas - só mostra se template NÃO tem pagePrintConfig */}
+              {(!selectedTemplateData?.pagePrintConfig) && (
               <button
                 onClick={() => setShowConfig(!showConfig)}
                 className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
@@ -1482,6 +1643,7 @@ const Print: React.FC = () => {
                 <i className="fas fa-cog mr-2"></i>
                 Configurações Avançadas
               </button>
+              )}
               
               <button
                 onClick={() => handlePrint()}
@@ -1938,9 +2100,126 @@ const Print: React.FC = () => {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Layout */}
+                {/* Modo de Impressão */}
                 <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Layout da Página</h3>
+                  <h3 className="font-semibold text-gray-900 mb-4">🖨️ Modo de Impressão</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setPrintConfig({ ...printConfig, printMode: 'grid' })}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        printConfig.printMode === 'grid'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📋</span>
+                        <div>
+                          <div className="font-medium text-gray-900">Grade (A4)</div>
+                          <div className="text-xs text-gray-500">Múltiplas etiquetas por página</div>
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setPrintConfig({ ...printConfig, printMode: 'auto' })}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        printConfig.printMode === 'auto'
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🎯</span>
+                        <div>
+                          <div className="font-medium text-gray-900">Automático</div>
+                          <div className="text-xs text-gray-500">Página = tamanho da etiqueta</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                  
+                  {printConfig.printMode === 'grid' && (
+                    <p className="text-sm text-blue-600 mt-2 bg-blue-50 p-2 rounded">
+                      📋 Múltiplas etiquetas numa folha A4 com layout definido (colunas × linhas)
+                    </p>
+                  )}
+                  {printConfig.printMode === 'auto' && (
+                    <p className="text-sm text-green-600 mt-2 bg-green-50 p-2 rounded">
+                      🎯 Cada página do PDF terá o tamanho exato da etiqueta (ex: 33×21mm). Ideal para impressoras térmicas.
+                    </p>
+                  )}
+                </div>
+
+                {/* Tamanho da Página - só mostra no modo grid */}
+                {printConfig.printMode === 'grid' && (
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-4">📄 Tamanho da Página</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Formato
+                      </label>
+                      <select
+                        value={printConfig.pageFormat}
+                        onChange={(e) => {
+                          const format = e.target.value as 'a4' | 'custom';
+                          if (format === 'a4') {
+                            setPrintConfig({ ...printConfig, pageFormat: format, pageWidth: 210, pageHeight: 297 });
+                          } else {
+                            setPrintConfig({ ...printConfig, pageFormat: format });
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                      >
+                        <option value="a4">A4 (210x297mm)</option>
+                        <option value="custom">Personalizado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Largura (mm)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="10"
+                        max="500"
+                        value={printConfig.pageWidth}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, pageWidth: parseFloat(e.target.value), pageFormat: 'custom' })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        disabled={printConfig.pageFormat === 'a4'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Altura (mm)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="10"
+                        max="500"
+                        value={printConfig.pageHeight}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, pageHeight: parseFloat(e.target.value), pageFormat: 'custom' })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        disabled={printConfig.pageFormat === 'a4'}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Use "Personalizado" para etiquetadoras térmicas (ex: 33x21mm, 95x12mm)
+                  </p>
+                </div>
+                )}
+
+                {/* Layout - só mostra no modo grid (manual) */}
+                {printConfig.printMode === 'grid' && (
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-4">📐 Layout da Grade</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1974,8 +2253,10 @@ const Print: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* Espaçamentos */}
+                {/* Espaçamentos - só mostra no modo grid */}
+                {printConfig.printMode === 'grid' && (
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-4">Espaçamentos (mm)</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -2015,8 +2296,10 @@ const Print: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* Margens */}
+                {/* Margens - só mostra no modo grid */}
+                {printConfig.printMode === 'grid' && (
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-4">Margens (mm)</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -2090,8 +2373,10 @@ const Print: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
 
-                {/* Pular Primeiras Etiquetas */}
+                {/* Pular Primeiras Etiquetas - só mostra no modo grid */}
+                {printConfig.printMode === 'grid' && (
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-4">Etiquetas Iniciais</h3>
                   <div>
@@ -2116,6 +2401,7 @@ const Print: React.FC = () => {
                     </p>
                   </div>
                 </div>
+                )}
 
                 {/* Opções */}
                 <div>
@@ -2134,6 +2420,31 @@ const Print: React.FC = () => {
                     </label>
                   </div>
                 </div>
+
+                {/* Presets Rápidos */}
+                {/* <div>
+                  <h3 className="font-semibold text-gray-900 mb-4">🎯 Presets Rápidos</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PRINT_PRESETS.map((preset, index) => (
+                      <button
+                        key={preset.id || index}
+                        onClick={() => setPrintConfig({
+                          ...printConfig,
+                          ...preset.config,
+                          name: preset.name,
+                        })}
+                        className={`text-left p-3 border rounded-lg text-sm hover:border-blue-500 hover:bg-blue-50 transition-colors ${
+                          printConfig.name === preset.name ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="font-medium text-gray-900">{preset.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {preset.config.columns}x{preset.config.rows} | {preset.config.pageWidth}x{preset.config.pageHeight}mm
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div> */}
               </div>
 
               <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t">

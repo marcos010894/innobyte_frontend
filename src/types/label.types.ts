@@ -99,6 +99,37 @@ export type LabelElement =
 // Unidades de medida para etiquetas
 export type LabelUnit = 'mm' | 'cm' | 'in' | 'px';
 
+// Tipo de tamanho de página
+export type PageSizeType = 'a4' | 'carta' | 'altura-etiqueta' | 'personalizado';
+
+// Configuração de página/impressão vinculada ao template
+export interface PagePrintConfig {
+  // Tipo de página
+  pageSizeType: PageSizeType; // 'a4' | 'carta' | 'altura-etiqueta' | 'personalizado'
+  
+  // Dimensões personalizadas (usado quando pageSizeType = 'personalizado')
+  customPageWidth?: number;
+  customPageHeight?: number;
+  
+  // Layout (aplicável para folha A4/Carta/Personalizado)
+  columns: number; // Número de colunas
+  rows?: number; // Número de linhas (apenas para folha, não para térmica)
+  
+  // Margens (em mm)
+  marginTop?: number; // Margem superior (não usado em 'altura-etiqueta')
+  marginBottom?: number; // Margem inferior (não usado em 'altura-etiqueta')
+  marginLeft: number; // Margem esquerda
+  marginRight?: number; // Margem direita
+  
+  // Espaçamentos entre etiquetas (em mm)
+  spacingHorizontal: number; // Espaçamento horizontal entre colunas
+  spacingVertical?: number; // Espaçamento vertical (não usado em 'altura-etiqueta')
+  
+  // Opções visuais
+  showBorders?: boolean; // Mostrar bordas na pré-visualização
+  skipLabels?: number; // Pular primeiras N etiquetas (para folhas parcialmente usadas)
+}
+
 // Tamanhos pré-definidos de etiquetas
 export interface LabelSize {
   id: string;
@@ -162,6 +193,9 @@ export interface LabelTemplate {
   isPublic?: boolean;
   userId?: string;
   compartilhado?: boolean;
+  
+  // NOVA: Configuração de página/impressão vinculada ao template
+  pagePrintConfig?: PagePrintConfig;
 }
 
 // Estado do editor
@@ -246,3 +280,50 @@ export const PRESET_COLORS = [
   '#C0C0C0', // Prata
   '#FFD700', // Ouro
 ];
+
+// Tamanhos de página padrão (em mm)
+export const PAGE_SIZES = {
+  a4: { width: 210, height: 297, name: 'A4' },
+  carta: { width: 215.9, height: 279.4, name: 'Carta (Letter)' },
+} as const;
+
+// Função helper para gerar subtitle do template
+export function generateTemplateSubtitle(template: LabelTemplate): string {
+  const { width, height, unit } = template.config;
+  const pagePrint = template.pagePrintConfig;
+  
+  if (!pagePrint) {
+    return `${width}×${height} ${unit}`;
+  }
+  
+  const parts: string[] = [];
+  
+  // Dimensões
+  parts.push(`${width}×${height} ${unit}`);
+  
+  // Colunas
+  if (pagePrint.columns > 1) {
+    parts.push(`${pagePrint.columns} col`);
+  }
+  
+  // Tipo de página
+  if (pagePrint.pageSizeType === 'a4') {
+    parts.push('A4');
+  } else if (pagePrint.pageSizeType === 'carta') {
+    parts.push('Carta');
+  } else if (pagePrint.pageSizeType === 'altura-etiqueta') {
+    parts.push('Altura da etiqueta');
+  } else if (pagePrint.pageSizeType === 'personalizado') {
+    parts.push('Personalizado');
+  }
+  
+  // Total por folha (apenas para folha)
+  if (pagePrint.pageSizeType !== 'altura-etiqueta' && pagePrint.rows) {
+    const total = pagePrint.columns * pagePrint.rows;
+    parts.push(`${total}/folha`);
+  } else if (pagePrint.pageSizeType === 'altura-etiqueta') {
+    parts.push('usada em impressoras térmicas');
+  }
+  
+  return parts.join(' • ');
+}

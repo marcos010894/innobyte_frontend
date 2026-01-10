@@ -17,6 +17,13 @@ const BatchPrintPage: React.FC = () => {
   
   // Configuração de impressão
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
+    // Modo de impressão
+    printMode: 'auto',
+    // Tamanho da página
+    pageWidth: 210,
+    pageHeight: 297,
+    pageFormat: 'a4',
+    // Layout
     columns: 3,
     rows: 8,
     spacingHorizontal: 2,
