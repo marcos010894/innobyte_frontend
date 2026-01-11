@@ -6,18 +6,42 @@ import type { LabelTemplate } from '@/types/label.types';
 const TemplatesPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null); // Modal de confirmação
   
   const { templates, loading, error, deleteTemplate, refresh } = useTemplates();
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Deseja realmente excluir este template?')) {
-      try {
-        await deleteTemplate(id);
-        alert('Template excluído com sucesso!');
-      } catch (err: any) {
-        alert(`Erro ao excluir template: ${err.message}`);
-      }
+  // Abrir modal de confirmação
+  const handleDeleteClick = (id: string) => {
+    console.log('🗑️ Abrindo modal de confirmação para id:', id);
+    setConfirmDeleteId(id);
+  };
+
+  // Confirmar exclusão
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    
+    const id = confirmDeleteId;
+    console.log('🗑️ Confirmado! Deletando id:', id);
+    setConfirmDeleteId(null);
+    
+    try {
+      setDeletingId(id);
+      console.log('🗑️ Chamando deleteTemplate...');
+      await deleteTemplate(id);
+      console.log('🗑️ Delete concluído com sucesso!');
+    } catch (err: any) {
+      console.error('❌ Erro ao deletar:', err);
+      alert(`❌ Erro ao excluir template: ${err.message}`);
+    } finally {
+      setDeletingId(null);
     }
+  };
+
+  // Cancelar exclusão
+  const handleCancelDelete = () => {
+    console.log('🗑️ Cancelado');
+    setConfirmDeleteId(null);
   };
 
   const handleDuplicate = async (template: LabelTemplate) => {
@@ -143,15 +167,25 @@ const TemplatesPage: React.FC = () => {
             >
               {/* Preview */}
               <div
-                className="h-48 bg-gray-100 flex items-center justify-center p-4 border-b cursor-pointer"
+                className="h-48 bg-gray-100 flex items-center justify-center p-4 border-b cursor-pointer relative overflow-hidden"
                 onClick={() => navigate(`/editor?template=${template.id}`)}
-                style={{ backgroundColor: template.config?.backgroundColor || '#FFFFFF' }}
+                style={{ backgroundColor: template.config?.backgroundColor || '#f9fafb' }}
               >
-                <div className="text-center">
-                  <i className="fas fa-tag text-5xl text-gray-400 mb-2"></i>
-                  <p className="text-xs text-gray-500">
-                    {template.elements.length} elemento{template.elements.length !== 1 ? 's' : ''}
-                  </p>
+                {template.thumbnail ? (
+                  <img 
+                    src={template.thumbnail} 
+                    alt={template.config?.name || 'Template'}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <i className="fas fa-tag text-5xl text-gray-300 mb-2"></i>
+                    <p className="text-xs text-gray-400">Sem prévia</p>
+                  </div>
+                )}
+                {/* Overlay com tamanho */}
+                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                  {template.config?.width || 50} × {template.config?.height || 30} {template.config?.unit || 'mm'}
                 </div>
               </div>
 
@@ -170,7 +204,14 @@ const TemplatesPage: React.FC = () => {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mb-3">
+                  <i className="fas fa-ruler-combined mr-1"></i>
                   {template.config?.width || 50} × {template.config?.height || 30} {template.config?.unit || 'mm'}
+                  {template.pagePrintConfig && (
+                    <span className="ml-2 text-green-600">
+                      <i className="fas fa-check-circle mr-1"></i>
+                      Config. salva
+                    </span>
+                  )}
                 </p>
 
                 <div className="flex items-center justify-between text-xs text-gray-400 mb-4">
@@ -198,11 +239,16 @@ const TemplatesPage: React.FC = () => {
                     <i className="fas fa-copy"></i>
                   </button>
                   <button
-                    onClick={() => handleDelete(template.id)}
-                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200"
+                    onClick={() => handleDeleteClick(String(template.id))}
+                    disabled={deletingId === String(template.id)}
+                    className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Excluir"
                   >
-                    <i className="fas fa-trash"></i>
+                    {deletingId === String(template.id) ? (
+                      <i className="fas fa-spinner fa-spin"></i>
+                    ) : (
+                      <i className="fas fa-trash"></i>
+                    )}
                   </button>
                 </div>
               </div>
@@ -229,12 +275,12 @@ const TemplatesPage: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-4">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-100 text-green-600">
-                <i className="fas fa-layer-group text-xl"></i>
+                <i className="fas fa-cog text-xl"></i>
               </div>
               <div className="ml-4">
-                <p className="text-sm text-gray-600">Total de Elementos</p>
+                <p className="text-sm text-gray-600">Com Config. de Impressão</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {templates.reduce((sum, t) => sum + t.elements.length, 0)}
+                  {templates.filter(t => t.pagePrintConfig).length}
                 </p>
               </div>
             </div>
@@ -254,6 +300,39 @@ const TemplatesPage: React.FC = () => {
                       ).toLocaleDateString()
                     : '-'}
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fas fa-trash text-red-600 text-2xl"></i>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Excluir Template</h3>
+              <p className="text-gray-600 mb-6">
+                Tem certeza que deseja excluir este template?<br/>
+                <span className="text-red-600 text-sm font-medium">Esta ação não pode ser desfeita.</span>
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={handleCancelDelete}
+                  className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                >
+                  <i className="fas fa-trash mr-2"></i>
+                  Excluir
+                </button>
               </div>
             </div>
           </div>

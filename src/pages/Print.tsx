@@ -3,8 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import type { Product, PrintConfig, PrintPreset } from '@/types/product.types';
-import { PRINT_PRESETS } from '@/types/product.types';
+import type { Product, PrintConfig } from '@/types/product.types';
 import type { LabelTemplate, LabelElement } from '@/types/label.types';
 import { replaceTemplateVariables } from '@/utils/templateVariables';
 import { generateTemplateSubtitle } from '@/types/label.types';
@@ -260,17 +259,23 @@ const Print: React.FC = () => {
       }
 
       try {
-        console.log('📥 Carregando template completo ID:', selectedTemplate);
+        console.log('📥 [loadFullTemplate] Carregando template completo ID:', selectedTemplate);
         const response = await templateService.getById(selectedTemplate);
+        console.log('📥 [loadFullTemplate] Response do backend:', response);
+        console.log('📥 [loadFullTemplate] Response.elements:', response.elements);
+        
         const converted = templateService.convertToLabelTemplate(response);
-        console.log('✅ Template completo carregado:', converted);
-        console.log('📦 Elements:', converted.elements);
+        console.log('✅ [loadFullTemplate] Template completo carregado:', converted);
+        console.log('📦 [loadFullTemplate] Elements:', converted.elements);
+        console.log('📦 [loadFullTemplate] Elements.length:', converted.elements?.length);
+        console.log('📋 [loadFullTemplate] pagePrintConfig:', converted.pagePrintConfig);
+        
         setSelectedTemplateData(converted);
         
         // Calcular automaticamente o layout baseado no tamanho da etiqueta
         calculateLayout(converted);
       } catch (err) {
-        console.error('❌ Erro ao carregar template completo:', err);
+        console.error('❌ [loadFullTemplate] Erro ao carregar template completo:', err);
         setSelectedTemplateData(null);
       }
     };
@@ -312,7 +317,7 @@ const Print: React.FC = () => {
         printMode: isThermal ? 'auto' : 'grid',
         pageWidth,
         pageHeight,
-        pageFormat: ppc.pageSizeType === 'a4' || ppc.pageSizeType === 'carta' ? 'a4' : 'custom',
+        pageFormat: ppc.pageSizeType === 'a4' ? 'a4' : 'custom', // Carta, personalizado e térmica usam 'custom'
         columns: ppc.columns,
         rows: ppc.rows || 1,
         marginTop: ppc.marginTop || 0,
@@ -496,14 +501,6 @@ const Print: React.FC = () => {
       total += getPrintQuantity(productId);
     });
     return total;
-  };
-
-  // Aplicar preset de impressão
-  const applyPreset = (preset: PrintPreset) => {
-    setPrintConfig({
-      ...printConfig,
-      ...preset.config,
-    });
   };
 
   // ===== FUNÇÕES DE IMPORTAÇÃO =====
@@ -881,12 +878,35 @@ const Print: React.FC = () => {
     try {
       // Usar o template customizado (editado) se fornecido, senão usar o selecionado
       const template = customTemplate || selectedTemplateData!;
-      console.log('🏷️ Template para impressão:', template);
-      console.log('📦 Elementos do template:', template.elements);
+      console.log('🏷️ [handlePrint] Template para impressão:', template);
+      console.log('📦 [handlePrint] template.elements:', template.elements);
+      console.log('📦 [handlePrint] typeof template.elements:', typeof template.elements);
+      console.log('📦 [handlePrint] Array.isArray(template.elements):', Array.isArray(template.elements));
+      console.log('📦 [handlePrint] template.elements?.length:', template.elements?.length);
+      console.log('📋 [handlePrint] template.pagePrintConfig:', template.pagePrintConfig);
+      console.log('⚙️ [handlePrint] template.config:', template.config);
+      
+      // Debug: verificar estrutura completa
+      console.log('🔍 [handlePrint] JSON.stringify(template):', JSON.stringify(template, null, 2));
 
       // Validar se o template tem elementos
       if (!template.elements || template.elements.length === 0) {
-        alert('⚠️ O template selecionado está vazio!\n\nPor favor:\n1. Vá para o Editor de Etiquetas\n2. Selecione este template\n3. Adicione elementos (texto, imagem, código de barras)\n4. Use ${nome}, ${preco}, ${codigo}, ${barcode} nos textos\n5. Salve o template\n6. Volte aqui e tente imprimir novamente');
+        console.error('❌ [handlePrint] TEMPLATE VAZIO!');
+        console.error('❌ [handlePrint] template.elements:', template.elements);
+        console.error('❌ [handlePrint] selectedTemplateData:', selectedTemplateData);
+        console.error('❌ [handlePrint] customTemplate:', customTemplate);
+        
+        // Mostrar opção de ir para o editor
+        const goToEditor = confirm(
+          '⚠️ Template Vazio\n\n' +
+          'Este template não possui elementos (textos, código de barras, imagens, etc).\n\n' +
+          'Deseja abrir o Editor de Etiquetas para adicionar elementos?'
+        );
+        
+        if (goToEditor && selectedTemplateData) {
+          navigate(`/editor?template=${selectedTemplateData.id}`);
+        }
+        
         setIsPrinting(false);
         return;
       }
@@ -915,14 +935,15 @@ const Print: React.FC = () => {
         console.log('🎯 Modo AUTO: página =', labelWidth, 'x', labelHeight, 'mm (tamanho exato da etiqueta)');
       } else {
         // Modo GRID: usar página A4 ou personalizada com layout de grade
-        if (pageFormat === 'custom' || (pageWidth !== 210 || pageHeight !== 297)) {
-          pdfFormat = [pageWidth, pageHeight];
-          pdfOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
-          console.log('📐 Modo GRID - Página personalizada:', pageWidth, 'x', pageHeight, 'mm');
-        } else {
+        if (pageFormat === 'a4') {
           pdfFormat = 'a4';
           pdfOrientation = 'portrait';
           console.log('📄 Modo GRID - Página A4 padrão');
+        } else {
+          // Usar dimensões personalizadas (Carta, Personalizado, etc)
+          pdfFormat = [pageWidth, pageHeight];
+          pdfOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
+          console.log('📐 Modo GRID - Página personalizada:', pageWidth, 'x', pageHeight, 'mm');
         }
       }
 
@@ -1055,7 +1076,16 @@ const Print: React.FC = () => {
 
       // Validar se o template tem elementos
       if (!template.elements || template.elements.length === 0) {
-        alert('⚠️ O template selecionado está vazio!');
+        const goToEditor = confirm(
+          '⚠️ Template Vazio\n\n' +
+          'Este template não possui elementos (textos, código de barras, imagens, etc).\n\n' +
+          'Deseja abrir o Editor de Etiquetas para adicionar elementos?'
+        );
+        
+        if (goToEditor) {
+          navigate(`/editor?template=${selectedTemplateData.id}`);
+        }
+        
         setIsGeneratingThermal(false);
         return;
       }
@@ -1510,7 +1540,6 @@ const Print: React.FC = () => {
                 {templates.map((template) => {
                   const isSelected = selectedTemplate === template.id;
                   const subtitle = generateTemplateSubtitle(template);
-                  const elementCount = template.elements?.length || 0;
                   const hasConfig = !!template.pagePrintConfig;
                   
                   return (
@@ -1543,11 +1572,6 @@ const Print: React.FC = () => {
                           <div className="text-xs text-gray-500 mt-0.5">
                             {subtitle}
                           </div>
-                          {elementCount === 0 && (
-                            <div className="text-xs text-amber-600 mt-1">
-                              ⚠️ Template vazio
-                            </div>
-                          )}
                         </div>
                         {isSelected && (
                           <i className="fas fa-check-circle text-primary"></i>
@@ -1558,11 +1582,24 @@ const Print: React.FC = () => {
                 })}
               </div>
               
+              {/* Aviso de template vazio */}
               {selectedTemplateData && selectedTemplateData.elements?.length === 0 && (
-                <p className="text-xs text-amber-600 mt-2 bg-amber-50 p-2 rounded">
-                  <i className="fas fa-exclamation-triangle mr-1"></i>
-                  <strong>Template vazio!</strong> Adicione elementos no Editor
-                </p>
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <h4 className="text-sm font-semibold text-red-900 mb-2 flex items-center gap-2">
+                    <i className="fas fa-exclamation-triangle"></i>
+                    Template Vazio
+                  </h4>
+                  <p className="text-xs text-red-700 mb-2">
+                    Este template não possui elementos (textos, código de barras, etc). Você precisa adicionar elementos antes de imprimir.
+                  </p>
+                  <button
+                    onClick={() => navigate(`/editor?template=${selectedTemplateData.id}`)}
+                    className="w-full px-3 py-2 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <i className="fas fa-edit"></i>
+                    Abrir no Editor de Etiquetas
+                  </button>
+                </div>
               )}
               
               {/* Informações da configuração do template */}
@@ -1598,29 +1635,6 @@ const Print: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* Presets de Impressão - só mostra se template NÃO tem pagePrintConfig */}
-            {(!selectedTemplateData?.pagePrintConfig) && (
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">
-                <i className="fas fa-magic mr-2 text-primary"></i>
-                Configurações Rápidas
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {PRINT_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() => applyPreset(preset)}
-                    className="p-3 border-2 border-gray-200 rounded-lg hover:border-primary hover:bg-blue-50 transition-colors text-left"
-                  >
-                    <div className="text-2xl mb-1">{preset.icon}</div>
-                    <div className="font-medium text-sm text-gray-900">{preset.name}</div>
-                    <div className="text-xs text-gray-500">{preset.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-            )}
 
             {/* Botões de Ação */}
             <div className="space-y-3">

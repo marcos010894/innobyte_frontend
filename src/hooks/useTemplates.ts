@@ -73,10 +73,14 @@ export function useTemplates(params?: ListTemplatesParams): UseTemplatesReturn {
 
   const deleteTemplate = async (id: string) => {
     try {
+      console.log('🗑️ [useTemplates] deleteTemplate chamado com id:', id);
       setError(null);
       await templateService.delete(id);
+      console.log('🗑️ [useTemplates] Delete no service concluído, recarregando lista...');
       await loadTemplates(); // Recarrega lista
+      console.log('🗑️ [useTemplates] Lista recarregada!');
     } catch (err: any) {
+      console.error('❌ [useTemplates] Erro no deleteTemplate:', err);
       const errorMsg = err.response?.data?.detail || err.message || 'Erro ao deletar template';
       setError(errorMsg);
       throw new Error(errorMsg);

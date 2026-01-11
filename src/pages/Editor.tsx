@@ -300,6 +300,13 @@ const Editor: React.FC = () => {
           page_print_config: template.pagePrintConfig, // INCLUIR configuração de impressão
         };
         
+        // DEBUG: Log para verificar o que está sendo enviado
+        console.log('📤 [handleSave] updateData:', updateData);
+        console.log('📤 [handleSave] elements:', updateData.elements);
+        console.log('📤 [handleSave] elements.length:', updateData.elements?.length);
+        console.log('📤 [handleSave] page_print_config:', updateData.page_print_config);
+        console.log('📤 [handleSave] JSON.stringify(updateData):', JSON.stringify(updateData, null, 2));
+        
         // Apenas master pode enviar o campo compartilhado
         if (canShare) {
           updateData.compartilhado = compartilhado;

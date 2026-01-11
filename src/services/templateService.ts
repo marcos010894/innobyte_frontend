@@ -88,7 +88,14 @@ class TemplateService {
    * Deleta um template
    */
   async delete(id: string): Promise<void> {
-    await api.delete(`${this.baseUrl}/${id}`);
+    console.log('🗑️ [templateService] Chamando DELETE para:', `${this.baseUrl}/${id}`);
+    try {
+      await api.delete(`${this.baseUrl}/${id}`);
+      console.log('🗑️ [templateService] DELETE concluído com sucesso!');
+    } catch (err) {
+      console.error('❌ [templateService] Erro no DELETE:', err);
+      throw err;
+    }
   }
 
   /**
@@ -106,10 +113,11 @@ class TemplateService {
    * Converte TemplateResponse para LabelTemplate (formato frontend)
    */
   convertToLabelTemplate(response: TemplateResponse): LabelTemplate {
-    console.log('🔄 Convertendo template:', response);
-    console.log('🔄 Elements recebidos:', response.elements);
-    console.log('🔄 Type of elements:', typeof response.elements);
-    console.log('🔄 Is Array?:', Array.isArray(response.elements));
+    console.log('🔄 [convertToLabelTemplate] Response completa:', JSON.stringify(response, null, 2));
+    console.log('🔄 [convertToLabelTemplate] Elements recebidos:', response.elements);
+    console.log('🔄 [convertToLabelTemplate] Type of elements:', typeof response.elements);
+    console.log('🔄 [convertToLabelTemplate] Is Array?:', Array.isArray(response.elements));
+    console.log('🔄 [convertToLabelTemplate] page_print_config:', response.page_print_config);
     
     // Validar que config existe e tem estrutura mínima
     const config = response.config || {
@@ -127,22 +135,27 @@ class TemplateService {
     // Garantir que elements é um array válido
     let elements = response.elements || [];
     
+    console.log('🔄 [convertToLabelTemplate] Elements antes do processamento:', elements);
+    
     // Se elements for string (JSON), fazer parse
     if (typeof elements === 'string') {
       try {
         elements = JSON.parse(elements);
-        console.log('🔄 Elements após parse:', elements);
+        console.log('🔄 [convertToLabelTemplate] Elements após parse:', elements);
       } catch (err) {
-        console.error('❌ Erro ao fazer parse de elements:', err);
+        console.error('❌ [convertToLabelTemplate] Erro ao fazer parse de elements:', err);
         elements = [];
       }
     }
     
     // Se não for array, tentar extrair de alguma propriedade
     if (!Array.isArray(elements)) {
-      console.warn('⚠️ Elements não é array:', elements);
+      console.warn('⚠️ [convertToLabelTemplate] Elements não é array:', elements);
       elements = [];
     }
+    
+    console.log('🔄 [convertToLabelTemplate] Elements final:', elements);
+    console.log('🔄 [convertToLabelTemplate] Elements.length:', elements.length);
 
     const converted = {
       id: response.id,
@@ -156,8 +169,9 @@ class TemplateService {
       pagePrintConfig: response.page_print_config,
     };
     
-    console.log('✅ Template convertido:', converted);
-    console.log('✅ Elements no template convertido:', converted.elements);
+    console.log('✅ [convertToLabelTemplate] Template convertido final:', converted);
+    console.log('✅ [convertToLabelTemplate] Elements no template convertido:', converted.elements);
+    console.log('✅ [convertToLabelTemplate] Elements.length no convertido:', converted.elements.length);
     
     return converted;
   }
