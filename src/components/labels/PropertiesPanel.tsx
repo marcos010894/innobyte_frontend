@@ -1,6 +1,7 @@
 import React from 'react';
 import type { LabelElement, TextElementProps, QRCodeElementProps, BarcodeElementProps, ImageElementProps, RectangleElementProps } from '@/types/label.types';
 import { AVAILABLE_FONTS, FONT_SIZES, FONT_WEIGHTS, PRESET_COLORS } from '@/types/label.types';
+import { AVAILABLE_VARIABLES } from '@/utils/templateVariables';
 
 interface PropertiesPanelProps {
   element: LabelElement | null;
@@ -30,6 +31,21 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdate }) 
           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none text-gray-900"
           rows={3}
         />
+        <div className="mt-2">
+          <label className="block text-xs text-gray-500 mb-1">Inserir variável:</label>
+          <div className="flex flex-wrap gap-1">
+            {AVAILABLE_VARIABLES.map((variable) => (
+              <button
+                key={variable.key}
+                onClick={() => onUpdate({ content: el.content + variable.key })}
+                className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100 border border-blue-200"
+                title={variable.description}
+              >
+                {variable.key}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -163,8 +179,23 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdate }) 
           onChange={(e) => onUpdate({ value: e.target.value })}
           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono resize-none text-gray-900"
           rows={3}
-          placeholder="https://exemplo.com"
+          placeholder="https://exemplo.com ou use variáveis como ${codigo}"
         />
+        <div className="mt-2">
+          <label className="block text-xs text-gray-500 mb-1">Inserir variável:</label>
+          <div className="flex flex-wrap gap-1">
+            {AVAILABLE_VARIABLES.map((variable) => (
+              <button
+                key={variable.key}
+                onClick={() => onUpdate({ value: el.value + variable.key })}
+                className="px-2 py-1 text-xs bg-purple-50 text-purple-700 rounded hover:bg-purple-100 border border-purple-200"
+                title={variable.description}
+              >
+                {variable.key}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -215,6 +246,21 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdate }) 
           className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono text-gray-900"
           placeholder="1234567890"
         />
+        <div className="mt-2">
+          <label className="block text-xs text-gray-500 mb-1">Inserir variável:</label>
+          <div className="flex flex-wrap gap-1">
+            {AVAILABLE_VARIABLES.filter(v => ['${barcode}', '${codigo}', '${sku}'].includes(v.key)).map((variable) => (
+              <button
+                key={variable.key}
+                onClick={() => onUpdate({ value: variable.key })}
+                className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded hover:bg-green-100 border border-green-200"
+                title={variable.description}
+              >
+                {variable.key}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div>

@@ -20,6 +20,7 @@ export const AVAILABLE_VARIABLES = [
   { key: '${nome}', description: 'Nome do produto', example: 'Produto Exemplo' },
   { key: '${preco}', description: 'Preço do produto', example: 'R$ 19,90' },
   { key: '${codigo}', description: 'Código do produto', example: 'PROD001' },
+  { key: '${sku}', description: 'Código SKU', example: 'SKU123456' },
   { key: '${barcode}', description: 'Código de barras', example: '7891234567890' },
   { key: '${categoria}', description: 'Categoria do produto', example: 'Eletrônicos' },
   { key: '${descricao}', description: 'Descrição do produto', example: 'Descrição detalhada' },
@@ -75,6 +76,9 @@ export function replaceVariables(
   
   // ${barcode} - Código de barras
   result = result.replace(/\$\{barcode\}/gi, product.barcode || '');
+  
+  // ${sku} - Código SKU
+  result = result.replace(/\$\{sku\}/gi, product.sku || '');
   
   // ${categoria} - Categoria
   result = result.replace(/\$\{categoria\}/gi, product.category || '');

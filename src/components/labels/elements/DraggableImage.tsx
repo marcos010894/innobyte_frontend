@@ -57,7 +57,8 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
       disableDragging={element.locked}
       enableResizing={!element.locked}
       style={{
-        border: isSelected ? '2px solid #3B82F6' : '1px dashed transparent',
+        outline: isSelected ? '1px solid #3B82F6' : '1px dashed transparent',
+        outlineOffset: '-1px',
         zIndex: element.zIndex || 1,
       }}
       onMouseDown={onSelect}

@@ -8,6 +8,7 @@ export interface Product {
   quantity: number;
   category?: string;
   barcode?: string;
+  sku?: string;  // Código SKU do produto
   image?: string;
   description?: string;
   createdAt: Date;

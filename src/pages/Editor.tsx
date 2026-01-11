@@ -119,7 +119,7 @@ const Editor: React.FC = () => {
         newElement = {
           ...baseElement,
           type: 'text',
-          content: 'Texto',
+          content: (additionalProps?.content as string) || 'Texto',
           fontSize: 14,
           fontFamily: 'Arial',
           fontWeight: '400',
@@ -601,7 +601,7 @@ const Editor: React.FC = () => {
       </div>
 
       {/* Editor Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Toolbar de Elementos */}
         <ElementsToolbar onAddElement={handleAddElement} />
 
@@ -875,8 +875,36 @@ const Editor: React.FC = () => {
                             <i className="fas fa-copy"></i>
                           </button>
                         </div>
-                        <p className="text-sm text-gray-600">Código do produto (SKU)</p>
+                        <p className="text-sm text-gray-600">Código do produto</p>
                         <p className="text-xs text-gray-500 mt-1">Exemplo: <em>"PROD001"</em></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SKU */}
+                  <div className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-purple-100 text-purple-600 rounded-lg p-2">
+                        <i className="fas fa-fingerprint"></i>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <code className="bg-gray-100 px-2 py-1 rounded text-purple-600 font-mono text-sm font-semibold">
+                            {'${sku}'}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('${sku}');
+                              alert('✅ Copiado para área de transferência!');
+                            }}
+                            className="text-xs text-gray-500 hover:text-purple-600"
+                            title="Copiar"
+                          >
+                            <i className="fas fa-copy"></i>
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600">Código SKU (do E-gestor)</p>
+                        <p className="text-xs text-gray-500 mt-1">Exemplo: <em>"SKU123456"</em></p>
                       </div>
                     </div>
                   </div>

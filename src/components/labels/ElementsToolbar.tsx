@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { ElementType, BarcodeFormat } from '@/types/label.types';
+import { AVAILABLE_VARIABLES } from '@/utils/templateVariables';
 
 interface ElementsToolbarProps {
   onAddElement: (type: ElementType, additionalProps?: Record<string, unknown>) => void;
@@ -117,21 +118,19 @@ const ElementsToolbar: React.FC<ElementsToolbarProps> = ({ onAddElement }) => {
           Campos Dinâmicos
         </h3>
         <p className="text-xs text-gray-600 mb-3">
-          Use variáveis para dados dinâmicos:
+          Clique para inserir um campo dinâmico:
         </p>
-        <div className="space-y-1 text-xs">
-          <div className="bg-white rounded px-2 py-1 font-mono text-gray-700">
-            {'{{nome}}'} - Nome do produto
-          </div>
-          <div className="bg-white rounded px-2 py-1 font-mono text-gray-700">
-            {'{{preco}}'} - Preço
-          </div>
-          <div className="bg-white rounded px-2 py-1 font-mono text-gray-700">
-            {'{{codigo}}'} - Código
-          </div>
-          <div className="bg-white rounded px-2 py-1 font-mono text-gray-700">
-            {'{{quantidade}}'} - Quantidade
-          </div>
+        <div className="flex flex-wrap gap-1">
+          {AVAILABLE_VARIABLES.map((variable) => (
+            <button
+              key={variable.key}
+              onClick={() => onAddElement('text', { content: variable.key })}
+              className="px-2 py-1 text-xs bg-white text-blue-700 rounded hover:bg-blue-50 border border-blue-200 font-mono transition-colors"
+              title={variable.description}
+            >
+              {variable.key}
+            </button>
+          ))}
         </div>
       </div>
       </div>
