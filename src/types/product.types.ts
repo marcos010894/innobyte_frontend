@@ -62,12 +62,14 @@ export interface PrintConfig {
   priceFormat?: 'decimal' | 'integer'; // 19.90 ou 19
   pricePrefix?: string; // Ex: "R$ "
   
-  // Novas opções de formatação de preço
-  ocultarCentavos?: boolean; // Não mostrar centavos quando valor é inteiro
-  parcelamento?: number; // Número de parcelas (2, 3, 4...)
+  // Opções de formatação de PREÇO
+  ocultarCentavos?: boolean;    // R$ 100 em vez de R$ 100,00 (quando inteiro)
+  exibirParcelado?: boolean;    // Mostrar "2x de R$ 50" em vez de "R$ 100"
+  exibirPrecoMascarado?: boolean; // Mostrar "CO0033" em vez de "R$ 100,33"
+  parcelamento?: number;        // Número de parcelas (2, 3, 4...)
   
-  // Opções de formatação de nome
-  abreviarNomes?: boolean; // Usar 4 letras de cada palavra
+  // Opções de formatação de NOME
+  abreviarNomes?: boolean;      // "Brin Prat" em vez de "Brinco Prata"
   
   // Pular primeiras etiquetas (útil para folhas parcialmente usadas)
   skipLabels?: number;

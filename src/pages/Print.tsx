@@ -1125,8 +1125,12 @@ const Print: React.FC = () => {
             maxNameLength: printConfig.maxNameLength,
             priceFormat: printConfig.priceFormat,
             pricePrefix: printConfig.pricePrefix,
+            // Opções de formatação de PREÇO
             ocultarCentavos: printConfig.ocultarCentavos,
+            exibirParcelado: printConfig.exibirParcelado,
+            exibirPrecoMascarado: printConfig.exibirPrecoMascarado,
             parcelamento: printConfig.parcelamento,
+            // Opções de formatação de NOME
             abreviarNomes: printConfig.abreviarNomes,
           }
         );
@@ -1852,8 +1856,7 @@ const Print: React.FC = () => {
                 Preview e Editar Etiqueta
               </button>
 
-              {/* Botão Config Avançadas - só mostra se template NÃO tem pagePrintConfig */}
-              {(!selectedTemplateData?.pagePrintConfig) && (
+              {/* Botão Config Avançadas */}
               <button
                 onClick={() => setShowConfig(!showConfig)}
                 className="w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
@@ -1861,8 +1864,164 @@ const Print: React.FC = () => {
                 <i className="fas fa-cog mr-2"></i>
                 Configurações Avançadas
               </button>
-              )}
+            </div>
+
+            {/* Formatação de Preço e Nome - Visível na tela */}
+            <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-orange-50 rounded-lg border border-purple-200">
+              <h4 className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                <i className="fas fa-magic text-purple-500"></i>
+                Formatação ao Imprimir
+              </h4>
               
+              {/* Opções de PREÇO */}
+              <div className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                <p className="text-xs font-semibold text-green-800 mb-2">
+                  <i className="fas fa-dollar-sign mr-1"></i> Preço
+                </p>
+                
+                <div className="space-y-2">
+                  {/* Opção: Ocultar centavos */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printConfig.ocultarCentavos || false}
+                      onChange={(e) =>
+                        setPrintConfig({ ...printConfig, ocultarCentavos: e.target.checked })
+                      }
+                      className="rounded text-green-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-xs text-gray-700 font-medium">Ocultar centavos</span>
+                      <p className="text-[10px] text-gray-500">R$ 100 em vez de R$ 100,00 (apenas quando inteiro)</p>
+                    </div>
+                  </label>
+                  
+                  {/* Opção: Exibir parcelado */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printConfig.exibirParcelado || false}
+                      onChange={(e) =>
+                        setPrintConfig({ 
+                          ...printConfig, 
+                          exibirParcelado: e.target.checked,
+                          exibirPrecoMascarado: false // Desativa o outro se ativar este
+                        })
+                      }
+                      className="rounded text-green-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-xs text-gray-700 font-medium">Mostrar parcelado</span>
+                      <p className="text-[10px] text-gray-500">2x de R$ 50 em vez de R$ 100</p>
+                    </div>
+                  </label>
+                  
+                  {/* Opção: Preço mascarado */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printConfig.exibirPrecoMascarado || false}
+                      onChange={(e) =>
+                        setPrintConfig({ 
+                          ...printConfig, 
+                          exibirPrecoMascarado: e.target.checked,
+                          exibirParcelado: false // Desativa o outro se ativar este
+                        })
+                      }
+                      className="rounded text-green-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-xs text-gray-700 font-medium">Preço mascarado</span>
+                      <p className="text-[10px] text-gray-500">CO0033 (2 letras do nome + centavos)</p>
+                    </div>
+                  </label>
+                  
+                  {/* Parcelamento - só mostra se exibir parcelado */}
+                  {printConfig.exibirParcelado && (
+                    <div className="flex items-center gap-2 pl-5 pt-1">
+                      <label className="text-xs text-gray-600">Parcelas:</label>
+                      <select
+                        value={printConfig.parcelamento || 2}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, parcelamento: parseInt(e.target.value) })
+                        }
+                        className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 bg-white"
+                      >
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4">4x</option>
+                        <option value="5">5x</option>
+                        <option value="6">6x</option>
+                        <option value="10">10x</option>
+                        <option value="12">12x</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Opções de NOME */}
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs font-semibold text-blue-800 mb-2">
+                  <i className="fas fa-font mr-1"></i> Nome do Produto
+                </p>
+                
+                <div className="space-y-2">
+                  {/* Opção: Abreviar nomes */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printConfig.abreviarNomes || false}
+                      onChange={(e) =>
+                        setPrintConfig({ ...printConfig, abreviarNomes: e.target.checked })
+                      }
+                      className="rounded text-blue-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-xs text-gray-700 font-medium">Abreviar nomes (4 letras)</span>
+                      <p className="text-[10px] text-gray-500">"Brinco Prata" → "Brin Prat"</p>
+                    </div>
+                  </label>
+                  
+                  {/* Opção: Truncar nomes */}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printConfig.truncateNames || false}
+                      onChange={(e) =>
+                        setPrintConfig({ ...printConfig, truncateNames: e.target.checked })
+                      }
+                      className="rounded text-blue-500 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-xs text-gray-700 font-medium">Truncar nomes longos</span>
+                      <p className="text-[10px] text-gray-500">Corta nomes muito longos com "..."</p>
+                    </div>
+                  </label>
+                  
+                  {/* Max length - só mostra se truncar */}
+                  {printConfig.truncateNames && (
+                    <div className="flex items-center gap-2 pl-5 pt-1">
+                      <label className="text-xs text-gray-600">Máximo:</label>
+                      <input
+                        type="number"
+                        min="5"
+                        max="50"
+                        value={printConfig.maxNameLength || 20}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, maxNameLength: parseInt(e.target.value) })
+                        }
+                        className="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 bg-white"
+                      />
+                      <span className="text-xs text-gray-500">caracteres</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Botão Imprimir */}
+            <div className="mt-4">
               <button
                 onClick={() => handlePrint()}
                 disabled={selectedProducts.size === 0 || !selectedTemplate || isPrinting}
@@ -2894,6 +3053,13 @@ const Print: React.FC = () => {
                                 maxNameLength: printConfig.maxNameLength,
                                 priceFormat: printConfig.priceFormat,
                                 pricePrefix: printConfig.pricePrefix,
+                                // Opções de formatação de PREÇO
+                                ocultarCentavos: printConfig.ocultarCentavos,
+                                exibirParcelado: printConfig.exibirParcelado,
+                                exibirPrecoMascarado: printConfig.exibirPrecoMascarado,
+                                parcelamento: printConfig.parcelamento,
+                                // Opções de formatação de NOME
+                                abreviarNomes: printConfig.abreviarNomes,
                               }
                             )
                           : previewTemplate.elements

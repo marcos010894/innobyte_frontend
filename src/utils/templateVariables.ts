@@ -11,13 +11,13 @@ export interface VariableOptions {
   maxNameLength?: number;
   priceFormat?: 'decimal' | 'integer';
   pricePrefix?: string;
-  // Novas opções de formatação
-  precoMascarado?: boolean;        // CO0033 (2 letras nome + 00 + centavos)
+  // Opções de formatação de PREÇO
+  ocultarCentavos?: boolean;        // R$ 100 em vez de R$ 100,00 (quando inteiro)
+  exibirParcelado?: boolean;        // Mostrar "2x de R$ 50" em vez de "R$ 100"
+  exibirPrecoMascarado?: boolean;   // Mostrar "CO0033" em vez de "R$ 100,33"
   parcelamento?: number;            // Número de parcelas (2, 3, 4, etc)
-  mostrarParcelado?: boolean;       // Mostrar preço parcelado
-  mostrarCheioEParcelado?: boolean; // Mostrar ambos
-  ocultarCentavos?: boolean;        // Não mostrar centavos quando inteiro
-  abreviarNomes?: boolean;          // Usar 4 letras de cada palavra
+  // Opções de formatação de NOME
+  abreviarNomes?: boolean;          // "Brin Prat" em vez de "Brinco Prata"
 }
 
 /**
@@ -130,16 +130,33 @@ export function replaceVariables(
 ): string {
   let result = text;
   
-  // ${nome} - Nome do produto (com opção de truncamento)
-  const productName = truncateText(product.name, options);
+  // ${nome} - Nome do produto
+  // Se abreviarNomes estiver ativo, já aplica a abreviação no ${nome}
+  let productName = product.name;
+  if (options.abreviarNomes) {
+    productName = abreviarNome(productName);
+  }
+  productName = truncateText(productName, options);
   result = result.replace(/\$\{nome\}/gi, productName);
   
-  // ${nome_abreviado} - Nome abreviado (4 letras por palavra)
+  // ${nome_abreviado} - Nome abreviado (4 letras por palavra) - sempre disponível
   const nomeAbreviado = abreviarNome(product.name);
   result = result.replace(/\$\{nome_abreviado\}/gi, nomeAbreviado);
   
-  // ${preco} - Preço formatado
-  const formattedPrice = formatPrice(product.price, options);
+  // ${preco} - Preço formatado com base nas opções
+  let formattedPrice: string;
+  const parcelas = options.parcelamento || 2;
+  
+  if (options.exibirPrecoMascarado) {
+    // Preço mascarado: CO0033
+    formattedPrice = formatPrecoMascarado(product.price, product.name);
+  } else if (options.exibirParcelado) {
+    // Preço parcelado: 2x de R$ 50,00
+    formattedPrice = formatPrecoParcelado(product.price, parcelas, options.pricePrefix);
+  } else {
+    // Preço normal com opção de ocultar centavos
+    formattedPrice = formatPrice(product.price, options);
+  }
   result = result.replace(/\$\{preco\}/gi, formattedPrice);
   
   // ${preco_mascarado} - Preço mascarado (CO0033)
@@ -147,7 +164,6 @@ export function replaceVariables(
   result = result.replace(/\$\{preco_mascarado\}/gi, precoMascarado);
   
   // ${preco_parcelado} - Preço parcelado (2x de R$ 9,95)
-  const parcelas = options.parcelamento || 2;
   const precoParcelado = formatPrecoParcelado(product.price, parcelas, options.pricePrefix);
   result = result.replace(/\$\{preco_parcelado\}/gi, precoParcelado);
   
