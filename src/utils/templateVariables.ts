@@ -14,6 +14,7 @@ export interface VariableOptions {
   // Opções de formatação de PREÇO
   ocultarCentavos?: boolean;        // R$ 100 em vez de R$ 100,00 (quando inteiro)
   exibirParcelado?: boolean;        // Mostrar "2x de R$ 50" em vez de "R$ 100"
+  incluirPrecoTotal?: boolean;      // Mostrar "R$ 100 | 2x R$ 50" (preço total + parcelado)
   exibirPrecoMascarado?: boolean;   // Mostrar "CO0033" em vez de "R$ 100,33"
   parcelamento?: number;            // Número de parcelas (2, 3, 4, etc)
   // Opções de formatação de NOME
@@ -151,8 +152,13 @@ export function replaceVariables(
     // Preço mascarado: CO0033
     formattedPrice = formatPrecoMascarado(product.price, product.name);
   } else if (options.exibirParcelado) {
-    // Preço parcelado: 2x de R$ 50,00
-    formattedPrice = formatPrecoParcelado(product.price, parcelas, options.pricePrefix);
+    if (options.incluirPrecoTotal) {
+      // Preço total + parcelado: R$ 100,00 | 2x R$ 50,00
+      formattedPrice = formatPrecoCheioEParcelado(product.price, parcelas, options);
+    } else {
+      // Apenas parcelado: 2x de R$ 50,00
+      formattedPrice = formatPrecoParcelado(product.price, parcelas, options.pricePrefix);
+    }
   } else {
     // Preço normal com opção de ocultar centavos
     formattedPrice = formatPrice(product.price, options);

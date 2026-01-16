@@ -65,6 +65,7 @@ export interface PrintConfig {
   // Opções de formatação de PREÇO
   ocultarCentavos?: boolean;    // R$ 100 em vez de R$ 100,00 (quando inteiro)
   exibirParcelado?: boolean;    // Mostrar "2x de R$ 50" em vez de "R$ 100"
+  incluirPrecoTotal?: boolean;  // Mostrar "R$ 100 | 2x R$ 50" (preço total + parcelado)
   exibirPrecoMascarado?: boolean; // Mostrar "CO0033" em vez de "R$ 100,33"
   parcelamento?: number;        // Número de parcelas (2, 3, 4...)
   

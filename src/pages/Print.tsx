@@ -1128,6 +1128,7 @@ const Print: React.FC = () => {
             // Opções de formatação de PREÇO
             ocultarCentavos: printConfig.ocultarCentavos,
             exibirParcelado: printConfig.exibirParcelado,
+            incluirPrecoTotal: printConfig.incluirPrecoTotal,
             exibirPrecoMascarado: printConfig.exibirPrecoMascarado,
             parcelamento: printConfig.parcelamento,
             // Opções de formatação de NOME
@@ -1938,23 +1939,39 @@ const Print: React.FC = () => {
                   
                   {/* Parcelamento - só mostra se exibir parcelado */}
                   {printConfig.exibirParcelado && (
-                    <div className="flex items-center gap-2 pl-5 pt-1">
-                      <label className="text-xs text-gray-600">Parcelas:</label>
-                      <select
-                        value={printConfig.parcelamento || 2}
-                        onChange={(e) =>
-                          setPrintConfig({ ...printConfig, parcelamento: parseInt(e.target.value) })
-                        }
-                        className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 bg-white"
-                      >
-                        <option value="2">2x</option>
-                        <option value="3">3x</option>
-                        <option value="4">4x</option>
-                        <option value="5">5x</option>
-                        <option value="6">6x</option>
-                        <option value="10">10x</option>
-                        <option value="12">12x</option>
-                      </select>
+                    <div className="pl-5 pt-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-gray-600">Parcelas:</label>
+                        <select
+                          value={printConfig.parcelamento || 2}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, parcelamento: parseInt(e.target.value) })
+                          }
+                          className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 bg-white"
+                        >
+                          <option value="2">2x</option>
+                          <option value="3">3x</option>
+                          <option value="4">4x</option>
+                          <option value="5">5x</option>
+                          <option value="6">6x</option>
+                          <option value="10">10x</option>
+                          <option value="12">12x</option>
+                        </select>
+                      </div>
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={printConfig.incluirPrecoTotal || false}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, incluirPrecoTotal: e.target.checked })
+                          }
+                          className="rounded text-green-500 mt-0.5"
+                        />
+                        <div>
+                          <span className="text-xs text-gray-700 font-medium">Incluir preço total</span>
+                          <p className="text-[10px] text-gray-500">R$ 100,00 | 2x R$ 50,00</p>
+                        </div>
+                      </label>
                     </div>
                   )}
                 </div>
@@ -2041,6 +2058,7 @@ const Print: React.FC = () => {
               </button>
               
               {/* Botão Impressora Térmica */}
+              <br />
               <button
                 onClick={() => setShowThermalExport(true)}
                 disabled={selectedProducts.size === 0 || !selectedTemplate}
@@ -3056,6 +3074,7 @@ const Print: React.FC = () => {
                                 // Opções de formatação de PREÇO
                                 ocultarCentavos: printConfig.ocultarCentavos,
                                 exibirParcelado: printConfig.exibirParcelado,
+                                incluirPrecoTotal: printConfig.incluirPrecoTotal,
                                 exibirPrecoMascarado: printConfig.exibirPrecoMascarado,
                                 parcelamento: printConfig.parcelamento,
                                 // Opções de formatação de NOME
