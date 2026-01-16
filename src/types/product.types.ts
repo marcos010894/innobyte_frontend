@@ -62,6 +62,13 @@ export interface PrintConfig {
   priceFormat?: 'decimal' | 'integer'; // 19.90 ou 19
   pricePrefix?: string; // Ex: "R$ "
   
+  // Novas opções de formatação de preço
+  ocultarCentavos?: boolean; // Não mostrar centavos quando valor é inteiro
+  parcelamento?: number; // Número de parcelas (2, 3, 4...)
+  
+  // Opções de formatação de nome
+  abreviarNomes?: boolean; // Usar 4 letras de cada palavra
+  
   // Pular primeiras etiquetas (útil para folhas parcialmente usadas)
   skipLabels?: number;
 }

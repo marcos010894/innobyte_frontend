@@ -1051,6 +1051,133 @@ const Editor: React.FC = () => {
                 </div>
               </div>
 
+              {/* Variáveis Especiais de Formatação */}
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-4">
+                <h3 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                  <i className="fas fa-magic"></i>
+                  Variáveis Especiais de Formatação
+                  <span className="text-xs bg-orange-200 text-orange-700 px-2 py-0.5 rounded-full">Avançado</span>
+                </h3>
+                <p className="text-sm text-orange-700 mb-4">
+                  Variáveis especiais que dependem das configurações de impressão. Configure-as na tela de impressão.
+                </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  
+                  {/* Preço Mascarado */}
+                  <div className="border border-orange-200 rounded-lg p-4 bg-white hover:border-orange-400 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-orange-100 text-orange-600 rounded-lg p-2">
+                        <i className="fas fa-mask"></i>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <code className="bg-orange-100 px-2 py-1 rounded text-orange-600 font-mono text-sm font-semibold">
+                            {'${preco_mascarado}'}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('${preco_mascarado}');
+                              alert('✅ Copiado para área de transferência!');
+                            }}
+                            className="text-xs text-gray-500 hover:text-orange-600"
+                            title="Copiar"
+                          >
+                            <i className="fas fa-copy"></i>
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600">2 letras do nome + "00" + centavos</p>
+                        <p className="text-xs text-gray-500 mt-1">Ex: Coca-Cola R$10,33 → <em>"CO0033"</em></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preço Parcelado */}
+                  <div className="border border-orange-200 rounded-lg p-4 bg-white hover:border-orange-400 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-orange-100 text-orange-600 rounded-lg p-2">
+                        <i className="fas fa-calculator"></i>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <code className="bg-orange-100 px-2 py-1 rounded text-orange-600 font-mono text-sm font-semibold">
+                            {'${preco_parcelado}'}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('${preco_parcelado}');
+                              alert('✅ Copiado para área de transferência!');
+                            }}
+                            className="text-xs text-gray-500 hover:text-orange-600"
+                            title="Copiar"
+                          >
+                            <i className="fas fa-copy"></i>
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600">Valor dividido em parcelas</p>
+                        <p className="text-xs text-gray-500 mt-1">Ex: R$100 (2x) → <em>"2x de R$ 50,00"</em></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preço Cheio e Parcelado */}
+                  <div className="border border-orange-200 rounded-lg p-4 bg-white hover:border-orange-400 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-orange-100 text-orange-600 rounded-lg p-2">
+                        <i className="fas fa-tags"></i>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <code className="bg-orange-100 px-2 py-1 rounded text-orange-600 font-mono text-sm font-semibold">
+                            {'${preco_cheio_parcelado}'}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('${preco_cheio_parcelado}');
+                              alert('✅ Copiado para área de transferência!');
+                            }}
+                            className="text-xs text-gray-500 hover:text-orange-600"
+                            title="Copiar"
+                          >
+                            <i className="fas fa-copy"></i>
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600">Mostra preço total + parcelado</p>
+                        <p className="text-xs text-gray-500 mt-1">Ex: <em>"R$ 100,00 | 2x R$ 50,00"</em></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Nome Abreviado */}
+                  <div className="border border-orange-200 rounded-lg p-4 bg-white hover:border-orange-400 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-orange-100 text-orange-600 rounded-lg p-2">
+                        <i className="fas fa-cut"></i>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <code className="bg-orange-100 px-2 py-1 rounded text-orange-600 font-mono text-sm font-semibold">
+                            {'${nome_abreviado}'}
+                          </code>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('${nome_abreviado}');
+                              alert('✅ Copiado para área de transferência!');
+                            }}
+                            className="text-xs text-gray-500 hover:text-orange-600"
+                            title="Copiar"
+                          >
+                            <i className="fas fa-copy"></i>
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600">Primeiras 4 letras de cada palavra</p>
+                        <p className="text-xs text-gray-500 mt-1">Ex: Brinco Prata 925 → <em>"Brin Prat 925"</em></p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
               {/* Exemplos de Uso */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <h3 className="font-semibold text-green-900 mb-3 flex items-center gap-2">

@@ -66,7 +66,7 @@ const DraggableText: React.FC<DraggableTextProps> = ({
     >
       <div
         ref={textRef}
-        className="w-full h-full cursor-move overflow-hidden"
+        className="w-full h-full cursor-move"
         onDoubleClick={handleDoubleClick}
         style={{
           fontSize: `${element.fontSize}px`,
@@ -76,10 +76,14 @@ const DraggableText: React.FC<DraggableTextProps> = ({
           textAlign: element.textAlign,
           fontStyle: element.italic ? 'italic' : 'normal',
           textDecoration: element.underline ? 'underline' : 'none',
-          lineHeight: element.lineHeight || 1.2,
-          padding: '4px',
+          lineHeight: element.lineHeight || 1.3,
+          padding: '2px 4px',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
+          overflow: 'visible',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: element.textAlign === 'center' ? 'center' : 'flex-start',
         }}
       >
         {element.content || 'Texto'}

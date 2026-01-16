@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -35,6 +35,11 @@ const Print: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  
+  // Estados para modo leitor de código de barras
+  const [barcodeScannerMode, setBarcodeScannerMode] = useState(false);
+  const [scannerInput, setScannerInput] = useState('');
+  const scannerInputRef = useRef<HTMLInputElement>(null);
   
   // Estados para integração E-gestor
   const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
@@ -113,6 +118,10 @@ const Print: React.FC = () => {
     maxNameLength: 20,
     priceFormat: 'decimal',
     pricePrefix: 'R$ ',
+    // Novas opções de formatação
+    ocultarCentavos: false,
+    parcelamento: 2,
+    abreviarNomes: false,
     // Pular primeiras etiquetas (folhas parcialmente usadas)
     skipLabels: 0,
   });
@@ -248,6 +257,141 @@ const Print: React.FC = () => {
     setSelectedProducts(new Set());
     setPrintQuantities({});
     await loadEgestorProducts(integracaoEgestor.id, 1, false);
+  };
+
+  // Efeito para manter foco no input do scanner quando modo ativo
+  useEffect(() => {
+    if (barcodeScannerMode && scannerInputRef.current) {
+      scannerInputRef.current.focus();
+    }
+  }, [barcodeScannerMode]);
+
+  // Função para processar código de barras lido pelo scanner
+  const handleBarcodeScanned = async (barcode: string) => {
+    if (!barcode.trim()) return;
+    
+    console.log('🔍 Código de barras lido:', barcode);
+    
+    // Primeiro, verifica se o produto já está na lista
+    const existingProduct = products.find(
+      p => p.barcode === barcode || p.code === barcode || p.sku === barcode
+    );
+    
+    if (existingProduct) {
+      // Se já existe, seleciona e incrementa a quantidade
+      setSelectedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.add(existingProduct.id);
+        return newSet;
+      });
+      
+      // Incrementar quantidade em 1
+      setPrintQuantities(prev => ({
+        ...prev,
+        [existingProduct.id]: (prev[existingProduct.id] || 0) + 1,
+      }));
+      
+      // Scroll automático e feedback visual
+      setTimeout(() => {
+        const productCard = document.getElementById(`product-card-${existingProduct.id}`);
+        if (productCard) {
+          productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          productCard.classList.add('ring-4', 'ring-green-500', 'bg-green-50');
+          setTimeout(() => {
+            productCard.classList.remove('ring-4', 'ring-green-500', 'bg-green-50');
+          }, 1000);
+        }
+      }, 100);
+      
+      // Limpar input e manter foco
+      setScannerInput('');
+      if (scannerInputRef.current) {
+        scannerInputRef.current.focus();
+      }
+      
+      return;
+    }
+    
+    // Se não encontrou localmente e tem integração E-gestor, busca na API
+    if (integracaoEgestor) {
+      setIsLoadingProducts(true);
+      try {
+        const response = await egestorService.getProdutos(integracaoEgestor.id, { 
+          page: 1, 
+          filtro: barcode 
+        });
+        
+        if (response.success && response.data && response.data.data.length > 0) {
+          const foundProducts = response.data.data.map(egestorService.converterProdutoParaImpressao);
+          
+          // Adiciona os produtos encontrados à lista (evita duplicatas)
+          setProducts(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newProducts = foundProducts.filter(p => !existingIds.has(p.id));
+            return [...prev, ...newProducts];
+          });
+          
+          // Seleciona o primeiro produto encontrado
+          if (foundProducts.length > 0) {
+            const firstProduct = foundProducts[0];
+            setSelectedProducts(prev => {
+              const newSet = new Set(prev);
+              newSet.add(firstProduct.id);
+              return newSet;
+            });
+            
+            // Define quantidade como 1
+            setPrintQuantities(prev => ({
+              ...prev,
+              [firstProduct.id]: 1,
+            }));
+            
+            // Scroll automático e feedback visual (aguarda o DOM atualizar)
+            setTimeout(() => {
+              const productCard = document.getElementById(`product-card-${firstProduct.id}`);
+              if (productCard) {
+                productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                productCard.classList.add('ring-4', 'ring-green-500', 'bg-green-50');
+                setTimeout(() => {
+                  productCard.classList.remove('ring-4', 'ring-green-500', 'bg-green-50');
+                }, 1000);
+              }
+            }, 200);
+          }
+        } else {
+          // Produto não encontrado
+          alert(`❌ Produto não encontrado: ${barcode}`);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao buscar produto:', err);
+        alert(`❌ Erro ao buscar produto: ${barcode}`);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    } else {
+      // Sem integração E-gestor
+      alert(`❌ Produto não encontrado na lista: ${barcode}`);
+    }
+    
+    // Limpar input e manter foco
+    setScannerInput('');
+    if (scannerInputRef.current) {
+      scannerInputRef.current.focus();
+    }
+  };
+
+  // Handler para o input do scanner
+  const handleScannerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setScannerInput(e.target.value);
+  };
+
+  // Handler para Enter ou Tab do scanner
+  const handleScannerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      handleBarcodeScanned(scannerInput);
+      setScannerInput('');
+    }
   };
 
   // Carregar template completo quando selecionado
@@ -981,6 +1125,9 @@ const Print: React.FC = () => {
             maxNameLength: printConfig.maxNameLength,
             priceFormat: printConfig.priceFormat,
             pricePrefix: printConfig.pricePrefix,
+            ocultarCentavos: printConfig.ocultarCentavos,
+            parcelamento: printConfig.parcelamento,
+            abreviarNomes: printConfig.abreviarNomes,
           }
         );
         
@@ -1256,6 +1403,62 @@ const Print: React.FC = () => {
                   Limpar Lista
                 </button>
               </div>
+
+              {/* Toggle e Input do Leitor de Código de Barras */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={barcodeScannerMode}
+                      onChange={(e) => setBarcodeScannerMode(e.target.checked)}
+                      className="w-5 h-5 text-amber-500 border-gray-300 rounded focus:ring-amber-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <i className="fas fa-barcode text-amber-600"></i>
+                      Modo Leitor de Código de Barras
+                    </span>
+                  </label>
+                  
+                  {barcodeScannerMode && (
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <i className="fas fa-barcode absolute left-3 top-1/2 transform -translate-y-1/2 text-amber-500 animate-pulse"></i>
+                        <input
+                          ref={scannerInputRef}
+                          type="text"
+                          value={scannerInput}
+                          onChange={handleScannerInputChange}
+                          onKeyDown={handleScannerKeyDown}
+                          onBlur={() => {
+                            // Refoca automaticamente após perder o foco se ainda estiver no modo scanner
+                            if (barcodeScannerMode) {
+                              setTimeout(() => scannerInputRef.current?.focus(), 100);
+                            }
+                          }}
+                          placeholder="Bipe ou digite o código de barras..."
+                          className="w-full pl-10 pr-4 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white font-mono"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <button
+                        onClick={() => handleBarcodeScanned(scannerInput)}
+                        disabled={!scannerInput.trim()}
+                        className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                        title="Buscar"
+                      >
+                        <i className="fas fa-search"></i>
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {barcodeScannerMode && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    Bipe um código de barras ou digite manualmente e pressione Enter. O produto será adicionado e selecionado automaticamente.
+                  </p>
+                )}
+              </div>
               
               {/* Barra de ações rápidas para quantidade - aparece quando há produtos selecionados */}
               {selectedProducts.size > 0 && (
@@ -1365,7 +1568,8 @@ const Print: React.FC = () => {
                     {filteredProducts.map((product) => (
                       <div
                         key={product.id}
-                        className={`p-4 transition-colors ${
+                        id={`product-card-${product.id}`}
+                        className={`p-4 transition-all duration-200 ${
                           selectedProducts.has(product.id) ? 'bg-blue-50' : 'hover:bg-gray-50'
                         }`}
                       >
@@ -2432,6 +2636,136 @@ const Print: React.FC = () => {
                       />
                       <span className="text-sm text-gray-700">Mostrar bordas de corte</span>
                     </label>
+                  </div>
+                </div>
+
+                {/* Opções Avançadas de Formatação */}
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-4">
+                    <i className="fas fa-magic mr-2 text-purple-500"></i>
+                    Formatação Avançada
+                  </h3>
+                  
+                  {/* Opções de Preço */}
+                  <div className="space-y-3 mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-sm font-medium text-green-800">
+                      <i className="fas fa-dollar-sign mr-2"></i>
+                      Opções de Preço
+                    </p>
+                    
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={printConfig.ocultarCentavos}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, ocultarCentavos: e.target.checked })
+                        }
+                        className="rounded text-green-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Ocultar centavos quando valor é inteiro
+                        <span className="text-xs text-gray-500 ml-1">(R$ 100 em vez de R$ 100,00)</span>
+                      </span>
+                    </label>
+                    
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm text-gray-700">Parcelamento:</label>
+                      <select
+                        value={printConfig.parcelamento || 2}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, parcelamento: parseInt(e.target.value) })
+                        }
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-gray-900"
+                      >
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4">4x</option>
+                        <option value="5">5x</option>
+                        <option value="6">6x</option>
+                        <option value="10">10x</option>
+                        <option value="12">12x</option>
+                      </select>
+                      <span className="text-xs text-gray-500">
+                        (usado em $&#123;preco_parcelado&#125;)
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Opções de Nome */}
+                  <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm font-medium text-blue-800">
+                      <i className="fas fa-font mr-2"></i>
+                      Opções de Nome
+                    </p>
+                    
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={printConfig.abreviarNomes}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, abreviarNomes: e.target.checked })
+                        }
+                        className="rounded text-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Abreviar nomes (4 letras por palavra)
+                        <span className="text-xs text-gray-500 ml-1">("Brinco Prata" → "Brin Prat")</span>
+                      </span>
+                    </label>
+                    
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={printConfig.truncateNames}
+                        onChange={(e) =>
+                          setPrintConfig({ ...printConfig, truncateNames: e.target.checked })
+                        }
+                        className="rounded text-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">Truncar nomes longos</span>
+                    </label>
+                    
+                    {printConfig.truncateNames && (
+                      <div className="flex items-center gap-2 ml-6">
+                        <label className="text-sm text-gray-700">Máx. caracteres:</label>
+                        <input
+                          type="number"
+                          min="5"
+                          max="50"
+                          value={printConfig.maxNameLength || 20}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, maxNameLength: parseInt(e.target.value) })
+                          }
+                          className="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Dica de variáveis especiais */}
+                  <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <p className="text-sm font-medium text-purple-800 mb-2">
+                      <i className="fas fa-info-circle mr-2"></i>
+                      Variáveis Especiais
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-white rounded px-2 py-1">
+                        <code className="text-purple-600">$&#123;preco_mascarado&#125;</code>
+                        <p className="text-gray-500">CO0033 (2 letras + centavos)</p>
+                      </div>
+                      <div className="bg-white rounded px-2 py-1">
+                        <code className="text-purple-600">$&#123;preco_parcelado&#125;</code>
+                        <p className="text-gray-500">2x de R$ 9,95</p>
+                      </div>
+                      <div className="bg-white rounded px-2 py-1">
+                        <code className="text-purple-600">$&#123;preco_cheio_parcelado&#125;</code>
+                        <p className="text-gray-500">R$ 19,90 | 2x R$ 9,95</p>
+                      </div>
+                      <div className="bg-white rounded px-2 py-1">
+                        <code className="text-purple-600">$&#123;nome_abreviado&#125;</code>
+                        <p className="text-gray-500">Brin Prat (4 letras)</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
