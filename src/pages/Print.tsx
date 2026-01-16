@@ -2056,16 +2056,15 @@ const Print: React.FC = () => {
                   </>
                 )}
               </button>
-              
+                <div className='pt-4'></div>
               {/* Botão Impressora Térmica */}
-              <br />
               <button
                 onClick={() => setShowThermalExport(true)}
                 disabled={selectedProducts.size === 0 || !selectedTemplate}
                 className="w-full px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
               >
                 <i className="fas fa-barcode mr-2"></i>
-                Exportar para Impressora Térmica (ZPL/EPL/TSPL)
+                Exportar para (ZPL/EPL/TSPL)
               </button>
             </div>
           </div>
