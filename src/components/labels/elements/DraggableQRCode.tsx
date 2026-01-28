@@ -17,7 +17,6 @@ const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
   isSelected,
   onSelect,
   onUpdate,
-  onDelete,
   scale,
 }) => {
   const handleDoubleClick = () => {
@@ -53,11 +52,15 @@ const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
       disableDragging={element.locked}
       enableResizing={!element.locked}
       style={{
-        outline: isSelected ? '1px solid #3B82F6' : '1px dashed transparent',
-        outlineOffset: '-1px',
+        outline: isSelected ? '1px solid #3B82F6' : 'none',
+        outlineOffset: '0px',
         zIndex: element.zIndex || 1,
+        pointerEvents: 'auto',
       }}
-      onMouseDown={onSelect}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
     >
       <div
         className="w-full h-full cursor-move flex items-center justify-center bg-white"
@@ -72,17 +75,6 @@ const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
           includeMargin={false}
         />
       </div>
-
-      {/* Botão de deletar quando selecionado */}
-      {isSelected && !element.locked && (
-        <button
-          onClick={onDelete}
-          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 shadow-md z-10"
-          style={{ fontSize: '12px' }}
-        >
-          ×
-        </button>
-      )}
     </Rnd>
   );
 };

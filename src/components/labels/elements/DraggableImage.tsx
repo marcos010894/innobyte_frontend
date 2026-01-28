@@ -16,7 +16,6 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
   isSelected,
   onSelect,
   onUpdate,
-  onDelete,
   scale,
 }) => {
   const handleDoubleClick = () => {
@@ -57,11 +56,15 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
       disableDragging={element.locked}
       enableResizing={!element.locked}
       style={{
-        outline: isSelected ? '1px solid #3B82F6' : '1px dashed transparent',
-        outlineOffset: '-1px',
+        outline: isSelected ? '1px solid #3B82F6' : 'none',
+        outlineOffset: '0px',
         zIndex: element.zIndex || 1,
+        pointerEvents: 'auto',
       }}
-      onMouseDown={onSelect}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
     >
       <div
         className="w-full h-full cursor-move relative overflow-hidden bg-gray-100"
@@ -84,7 +87,7 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
             <p className="text-xs">Clique 2x para adicionar</p>
           </div>
         )}
-        
+
         {/* Input de arquivo escondido */}
         {isSelected && !element.locked && (
           <label className="absolute bottom-1 right-1 bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-blue-600 shadow-md cursor-pointer">
@@ -98,17 +101,6 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
           </label>
         )}
       </div>
-
-      {/* Botão de deletar quando selecionado */}
-      {isSelected && !element.locked && (
-        <button
-          onClick={onDelete}
-          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 shadow-md z-10"
-          style={{ fontSize: '12px' }}
-        >
-          ×
-        </button>
-      )}
     </Rnd>
   );
 };

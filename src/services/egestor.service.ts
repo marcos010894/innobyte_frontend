@@ -12,7 +12,8 @@ import type { ApiResponse } from '../types/api.types';
 export interface EgestorProduto {
   codigo: number;
   nome: string;
-  referencia?: string;
+  referencia?: string; // DEPRECATED: use codigo_proprio
+  codigoProprio?: string; // Este é o SKU no e-gestor (campo "código próprio")
   codigoBarras?: string;
   preco: number;
   precoCusto?: number;
@@ -271,7 +272,7 @@ export const converterProdutoParaImpressao = (produto: EgestorProduto) => {
   return {
     id: produto.codigo.toString(),
     name: produto.nome,
-    code: produto.referencia || produto.codigo.toString(),
+    code: produto.codigoProprio || produto.referencia || produto.codigo.toString(), // Prioriza código próprio (SKU)
     price: produto.preco || 0,
     quantity: produto.estoque || 0,
     category: produto.categoria?.nome || 'Sem categoria',

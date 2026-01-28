@@ -65,6 +65,45 @@ const Editor: React.FC = () => {
     }
   }, [searchParams]);
 
+  // Suporte para teclas de atalho (setas e Delete)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedElementId) return;
+
+      const selectedElement = template.elements.find(el => el.id === selectedElementId);
+      if (!selectedElement || selectedElement.locked) return;
+
+      const moveStep = e.shiftKey ? 10 : 1; // Shift para movimento mais rápido
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          handleUpdateElement(selectedElementId, { y: selectedElement.y - moveStep });
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          handleUpdateElement(selectedElementId, { y: selectedElement.y + moveStep });
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          handleUpdateElement(selectedElementId, { x: selectedElement.x - moveStep });
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          handleUpdateElement(selectedElementId, { x: selectedElement.x + moveStep });
+          break;
+        case 'Delete':
+        case 'Backspace':
+          e.preventDefault();
+          handleDeleteElement(selectedElementId);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedElementId, template.elements]);
+
   const loadTemplate = async (id: string) => {
     setIsLoading(true);
     try {
@@ -120,11 +159,12 @@ const Editor: React.FC = () => {
           ...baseElement,
           type: 'text',
           content: (additionalProps?.content as string) || 'Texto',
-          fontSize: 14,
+          fontSize: 8,
           fontFamily: 'Arial',
           fontWeight: '400',
           color: '#000000',
           textAlign: 'left',
+          noWrap: false, // Permitir quebra de linha por padrão
         } as LabelElement;
         break;
       case 'qrcode':

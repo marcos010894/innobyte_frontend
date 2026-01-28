@@ -40,6 +40,7 @@ export interface TextElementProps extends BaseElementProps {
   italic?: boolean;
   underline?: boolean;
   lineHeight?: number;
+  noWrap?: boolean; // Opção para desabilitar quebra de linha
 }
 
 // Propriedades de QR Code

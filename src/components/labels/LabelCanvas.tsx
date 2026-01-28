@@ -198,27 +198,6 @@ const LabelCanvas: React.FC<LabelCanvasProps> = ({
             </div>
           )}
 
-          {/* Área útil com margens (destacada) */}
-          {(marginTopPx > 0 || marginLeftPx > 0 || marginRightPx > 0 || marginBottomPx > 0) && config.showMargins && (
-            <div
-              style={{
-                position: 'absolute',
-                top: `${marginTopPx}px`,
-                left: `${marginLeftPx}px`,
-                right: `${marginRightPx}px`,
-                bottom: `${marginBottomPx}px`,
-                border: '2px solid rgba(34, 197, 94, 0.5)',
-                pointerEvents: 'none',
-                zIndex: 5,
-                backgroundColor: 'rgba(34, 197, 94, 0.05)',
-              }}
-            >
-              <div className="absolute top-1 left-1 text-xs font-semibold text-green-600 bg-white px-1 rounded">
-                Área de impressão
-              </div>
-            </div>
-          )}
-
           {/* Renderizar todos os elementos */}
           {elements.map(renderElement)}
         </div>

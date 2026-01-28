@@ -167,6 +167,35 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdate }) 
           <i className="fas fa-underline"></i> Sublinhado
         </label>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Quebra de Linha</label>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onUpdate({ noWrap: false })}
+            className={`flex-1 py-2 px-3 rounded-md text-sm ${
+              !el.noWrap
+                ? 'bg-primary text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Sim
+          </button>
+          <button
+            onClick={() => onUpdate({ noWrap: true })}
+            className={`flex-1 py-2 px-3 rounded-md text-sm ${
+              el.noWrap
+                ? 'bg-primary text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Não
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          {el.noWrap ? 'Texto não quebrará linha' : 'Texto quebrará automaticamente'}
+        </p>
+      </div>
     </>
   );
 

@@ -26,7 +26,8 @@ export const handleApiError = (error: AxiosError<ApiErrorResponse>): string => {
   // Erro de rede ou servidor não respondeu
   if (!error.response) {
     console.log('🔴 Erro de rede - sem resposta do servidor');
-    return 'Erro de conexão. Verifique se o backend está rodando em http://localhost:8000';
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'https://innobyte.fly.dev/api';
+    return `Erro de conexão. Verifique se o backend está acessível em ${apiUrl}`;
   }
 
   const status = error.response.status;
