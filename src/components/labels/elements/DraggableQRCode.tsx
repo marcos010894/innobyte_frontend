@@ -1,7 +1,8 @@
 import React from 'react';
 import { Rnd } from 'react-rnd';
 import { QRCodeSVG } from 'qrcode.react';
-import type { QRCodeElementProps } from '@/types/label.types';
+import type { QRCodeElementProps, PagePrintConfig } from '@/types/label.types';
+import { replaceVariables } from '@/utils/templateVariables';
 
 interface DraggableQRCodeProps {
   element: QRCodeElementProps;
@@ -10,6 +11,9 @@ interface DraggableQRCodeProps {
   onUpdate: (updates: Partial<QRCodeElementProps>) => void;
   onDelete: () => void;
   scale: number;
+  previewProduct?: any;
+  isPrinting?: boolean;
+  printOptions?: PagePrintConfig;
 }
 
 const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
@@ -18,6 +22,9 @@ const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
   onSelect,
   onUpdate,
   scale,
+  previewProduct,
+  isPrinting = false,
+  printOptions,
 }) => {
   const handleDoubleClick = () => {
     const newValue = prompt('Digite o valor do QR Code:', element.value);
@@ -26,36 +33,76 @@ const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
     }
   };
 
+  // O QR Code deve ser sempre quadrado e caber no container
   const size = Math.min(element.width, element.height);
+  const qrPadding = 4; // Respiro interno para evitar encostar nas bordas/seleção
+  const qrSize = Math.max(size - (qrPadding * 2), 10);
+
+  const qrValue = previewProduct
+    ? replaceVariables(element.value || 'https://innobyte.com', previewProduct, printOptions as any)
+    : (element.value || 'https://innobyte.com');
+
+  const containerStyle: React.CSSProperties = {
+    position: isPrinting ? 'absolute' : 'relative',
+    left: isPrinting ? `${element.x}px` : 0,
+    top: isPrinting ? `${element.y}px` : 0,
+    width: `${element.width}px`,
+    height: `${element.height}px`,
+    zIndex: (element.zIndex || 1),
+    backgroundColor: '#FFFFFF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    boxSizing: 'border-box',
+  };
+
+  if (isPrinting) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ padding: `${qrPadding}px`, boxSizing: 'border-box', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <QRCodeSVG
+            value={qrValue}
+            size={qrSize}
+            bgColor={element.bgColor || '#FFFFFF'}
+            fgColor={element.fgColor || '#000000'}
+            level={element.errorCorrectionLevel || 'M'}
+            includeMargin={false}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Rnd
       size={{ width: element.width, height: element.height }}
       position={{ x: element.x, y: element.y }}
       onDragStop={(_e, d) => {
-        onUpdate({ x: d.x, y: d.y });
+        onUpdate({ x: Math.round(d.x), y: Math.round(d.y) });
       }}
       onResizeStop={(_e, _direction, ref, _delta, position) => {
         const newWidth = parseInt(ref.style.width);
         const newHeight = parseInt(ref.style.height);
-        // Manter proporção quadrada para QR Code
-        const newSize = Math.min(newWidth, newHeight);
+        // Garantir que o container seja quadrado se redimensionado
+        const newSize = Math.round(Math.min(newWidth, newHeight));
         onUpdate({
           width: newSize,
           height: newSize,
-          ...position,
+          x: Math.round(position.x),
+          y: Math.round(position.y),
         });
       }}
       lockAspectRatio={true}
       bounds="parent"
       scale={scale}
       disableDragging={element.locked}
-      enableResizing={!element.locked}
+      enableResizing={!element.locked && isSelected}
       style={{
-        outline: isSelected ? '1px solid #3B82F6' : 'none',
+        zIndex: isSelected ? 9999 : (element.zIndex || 1),
+        outline: isSelected ? '1px solid #3B82F6' : '0.5px dashed #CBD5E1',
         outlineOffset: '0px',
-        zIndex: element.zIndex || 1,
-        pointerEvents: 'auto',
+        backgroundColor: '#FFFFFF',
       }}
       onMouseDown={(e) => {
         e.stopPropagation();
@@ -63,12 +110,13 @@ const DraggableQRCode: React.FC<DraggableQRCodeProps> = ({
       }}
     >
       <div
-        className="w-full h-full cursor-move flex items-center justify-center bg-white"
+        className="w-full h-full cursor-move flex items-center justify-center"
         onDoubleClick={handleDoubleClick}
+        style={{ padding: `${qrPadding}px`, boxSizing: 'border-box' }}
       >
         <QRCodeSVG
-          value={element.value || 'https://innobyte.com'}
-          size={size - 8}
+          value={qrValue}
+          size={qrSize}
           bgColor={element.bgColor || '#FFFFFF'}
           fgColor={element.fgColor || '#000000'}
           level={element.errorCorrectionLevel || 'M'}

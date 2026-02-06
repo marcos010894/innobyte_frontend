@@ -43,22 +43,23 @@ export const AVAILABLE_VARIABLES = [
  * Formata o preço de acordo com as opções
  */
 function formatPrice(price: number, options: VariableOptions): string {
+  const safePrice = typeof price === 'number' ? price : 0;
   const prefix = options.pricePrefix || 'R$ ';
-  
+
   // Ocultar centavos quando valor é inteiro
   if (options.ocultarCentavos) {
-    const temCentavos = price % 1 !== 0;
+    const temCentavos = safePrice % 1 !== 0;
     if (!temCentavos) {
-      return `${prefix}${Math.floor(price)}`;
+      return `${prefix}${Math.floor(safePrice)}`;
     }
   }
-  
+
   if (options.priceFormat === 'integer') {
-    return `${prefix}${Math.floor(price)}`;
+    return `${prefix}${Math.floor(safePrice)}`;
   }
-  
+
   // Formato decimal padrão brasileiro
-  return `${prefix}${price.toFixed(2).replace('.', ',')}`;
+  return `${prefix}${safePrice.toFixed(2).replace('.', ',')}`;
 }
 
 /**
@@ -66,12 +67,15 @@ function formatPrice(price: number, options: VariableOptions): string {
  * Ex: Coca-Cola R$10,33 → CO0033
  */
 function formatPrecoMascarado(price: number, productName: string): string {
+  const safeName = productName || '';
+  const safePrice = typeof price === 'number' ? price : 0;
+
   // Pegar 2 primeiras letras do nome (maiúsculas)
-  const letras = productName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
-  
+  const letras = safeName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase();
+
   // Pegar os centavos (2 dígitos)
-  const centavos = Math.round((price % 1) * 100).toString().padStart(2, '0');
-  
+  const centavos = Math.round((safePrice % 1) * 100).toString().padStart(2, '0');
+
   return `${letras}00${centavos}`;
 }
 
@@ -80,7 +84,7 @@ function formatPrecoMascarado(price: number, productName: string): string {
  */
 function formatPrecoParcelado(price: number, parcelas: number, prefix: string = 'R$ '): string {
   if (parcelas <= 1) return formatPrice(price, { pricePrefix: prefix });
-  
+
   const valorParcela = price / parcelas;
   return `${parcelas}x de ${prefix}${valorParcela.toFixed(2).replace('.', ',')}`;
 }
@@ -91,9 +95,9 @@ function formatPrecoParcelado(price: number, parcelas: number, prefix: string = 
 function formatPrecoCheioEParcelado(price: number, parcelas: number, options: VariableOptions): string {
   const prefix = options.pricePrefix || 'R$ ';
   const precoCheio = formatPrice(price, options);
-  
+
   if (parcelas <= 1) return precoCheio;
-  
+
   const valorParcela = price / parcelas;
   return `${precoCheio} | ${parcelas}x ${prefix}${valorParcela.toFixed(2).replace('.', ',')}`;
 }
@@ -125,76 +129,77 @@ function truncateText(text: string, options: VariableOptions): string {
  * Substitui variáveis em uma string
  */
 export function replaceVariables(
-  text: string, 
-  product: Product, 
+  text: string,
+  product: Product,
   options: VariableOptions = {}
 ): string {
   let result = text;
-  
+
   // ${nome} - Nome do produto
   // Se abreviarNomes estiver ativo, já aplica a abreviação no ${nome}
-  let productName = product.name;
+  let productName = product?.name || '';
   if (options.abreviarNomes) {
     productName = abreviarNome(productName);
   }
   productName = truncateText(productName, options);
   result = result.replace(/\$\{nome\}/gi, productName);
-  
+
   // ${nome_abreviado} - Nome abreviado (4 letras por palavra) - sempre disponível
-  const nomeAbreviado = abreviarNome(product.name);
+  const nomeAbreviado = abreviarNome(product?.name || '');
   result = result.replace(/\$\{nome_abreviado\}/gi, nomeAbreviado);
-  
+
   // ${preco} - Preço formatado com base nas opções
   let formattedPrice: string;
   const parcelas = options.parcelamento || 2;
-  
+  const safePrice = product?.price ?? 0;
+
   if (options.exibirPrecoMascarado) {
     // Preço mascarado: CO0033
-    formattedPrice = formatPrecoMascarado(product.price, product.name);
+    formattedPrice = formatPrecoMascarado(safePrice, product?.name);
   } else if (options.exibirParcelado) {
     if (options.incluirPrecoTotal) {
       // Preço total + parcelado: R$ 100,00 | 2x R$ 50,00
-      formattedPrice = formatPrecoCheioEParcelado(product.price, parcelas, options);
+      formattedPrice = formatPrecoCheioEParcelado(safePrice, parcelas, options);
     } else {
       // Apenas parcelado: 2x de R$ 50,00
-      formattedPrice = formatPrecoParcelado(product.price, parcelas, options.pricePrefix);
+      formattedPrice = formatPrecoParcelado(safePrice, parcelas, options.pricePrefix);
     }
   } else {
     // Preço normal com opção de ocultar centavos
-    formattedPrice = formatPrice(product.price, options);
+    formattedPrice = formatPrice(safePrice, options);
   }
   result = result.replace(/\$\{preco\}/gi, formattedPrice);
-  
+
   // ${preco_mascarado} - Preço mascarado (CO0033)
-  const precoMascarado = formatPrecoMascarado(product.price, product.name);
+  const precoMascarado = formatPrecoMascarado(safePrice, product?.name);
   result = result.replace(/\$\{preco_mascarado\}/gi, precoMascarado);
-  
+
   // ${preco_parcelado} - Preço parcelado (2x de R$ 9,95)
-  const precoParcelado = formatPrecoParcelado(product.price, parcelas, options.pricePrefix);
+  const precoParcelado = formatPrecoParcelado(safePrice, parcelas, options.pricePrefix);
   result = result.replace(/\$\{preco_parcelado\}/gi, precoParcelado);
-  
+
   // ${preco_cheio_parcelado} - Preço cheio + parcelado
-  const precoCheioParcelado = formatPrecoCheioEParcelado(product.price, parcelas, options);
+  const precoCheioParcelado = formatPrecoCheioEParcelado(safePrice, parcelas, options);
   result = result.replace(/\$\{preco_cheio_parcelado\}/gi, precoCheioParcelado);
-  
+
   // ${codigo} - Código do produto
-  result = result.replace(/\$\{codigo\}/gi, product.code || '');
-  
+  result = result.replace(/\$\{codigo\}/gi, product?.code || '');
+
   // ${barcode} - Código de barras
-  result = result.replace(/\$\{barcode\}/gi, product.barcode || '');
-  
+  result = result.replace(/\$\{barcode\}/gi, product?.barcode || '');
+
   // ${sku} - Código SKU
-  result = result.replace(/\$\{sku\}/gi, product.sku || '');
-  
+  result = result.replace(/\$\{sku\}/gi, product?.sku || '');
+
   // ${categoria} - Categoria
-  result = result.replace(/\$\{categoria\}/gi, product.category || '');
-  
+  result = result.replace(/\$\{categoria\}/gi, product?.category || '');
+
   // ${descricao} - Descrição
-  result = result.replace(/\$\{descricao\}/gi, product.description || '');
-  
+  result = result.replace(/\$\{descricao\}/gi, product?.description || '');
+
   // ${quantidade} - Quantidade
-  result = result.replace(/\$\{quantidade\}/gi, product.quantity.toString());
-  
+  result = result.replace(/\$\{quantidade\}/gi, (product?.quantity ?? 0).toString());
+
   return result;
 }
 
@@ -216,7 +221,7 @@ export function replaceElementVariables(
         content: replaceVariables(textElement.content, product, options),
       };
     }
-      
+
     case 'qrcode': {
       // Substituir variáveis no valor do QR Code
       const qrElement = element as Extract<LabelElement, { type: 'qrcode' }>;
@@ -225,7 +230,7 @@ export function replaceElementVariables(
         value: replaceVariables(qrElement.value, product, options),
       };
     }
-      
+
     case 'barcode': {
       // Substituir variáveis no valor do código de barras
       const barcodeElement = element as Extract<LabelElement, { type: 'barcode' }>;
@@ -234,7 +239,7 @@ export function replaceElementVariables(
         value: replaceVariables(barcodeElement.value, product, options),
       };
     }
-      
+
     default:
       // Outros tipos de elemento não precisam de substituição
       return element;
@@ -274,7 +279,7 @@ export function validateVariables(text: string): { valid: boolean; unknown: stri
   const variables = extractVariables(text);
   const knownVariables = AVAILABLE_VARIABLES.map(v => v.key);
   const unknown = variables.filter(v => !knownVariables.includes(v as any));
-  
+
   return {
     valid: unknown.length === 0,
     unknown,

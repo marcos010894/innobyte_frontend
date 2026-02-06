@@ -25,7 +25,7 @@ import {
 const Print: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   // Estados
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -35,29 +35,30 @@ const Print: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  
+
   // Estados para modo leitor de código de barras
   const [barcodeScannerMode, setBarcodeScannerMode] = useState(false);
   const [scannerInput, setScannerInput] = useState('');
   const scannerInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Estados para integração E-gestor
   const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
   const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor'>('manual');
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [egestorPage, setEgestorPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
-  
+
   // Estado para quantidade de etiquetas por produto (chave: id do produto, valor: quantidade)
   const [printQuantities, setPrintQuantities] = useState<Record<string, number>>({});
-  
+
   // Estados para edição de preview
   const [showPreviewEditor, setShowPreviewEditor] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<LabelTemplate | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [showPreviewWithData, setShowPreviewWithData] = useState(false); // Toggle para mostrar com dados reais
-  
+  const [zoom, setZoom] = useState(2); // Zoom inicial de 200%
+
   // Estados para exportação de impressora térmica
   const [showThermalExport, setShowThermalExport] = useState(false);
   const [thermalConfig, setThermalConfig] = useState<ThermalPrintConfig>({
@@ -70,7 +71,7 @@ const Print: React.FC = () => {
     copies: 1,
   });
   const [isGeneratingThermal, setIsGeneratingThermal] = useState(false);
-  
+
   // Estados para importação de etiquetas
   const [showImportModal, setShowImportModal] = useState(false);
   const [importMode, setImportMode] = useState<'nf' | 'sincronizacao'>('sincronizacao');
@@ -88,7 +89,7 @@ const Print: React.FC = () => {
     estatisticas?: egestorService.EstatisticasSincronizacao;
   } | null>(null);
   const [lastPrintSuccess, setLastPrintSuccess] = useState(false);
-  
+
   // Configuração de impressão
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
     name: 'Personalizado',
@@ -133,12 +134,12 @@ const Print: React.FC = () => {
       try {
         const apiTemplates = await templateService.list();
         console.log('📋 Templates recebidos da API (RAW):', apiTemplates);
-        
+
         const converted = apiTemplates.map(templateService.convertToLabelTemplate);
         console.log('✅ Templates convertidos:', converted);
-        
+
         setTemplates(converted);
-        
+
         if (converted.length > 0) {
           setSelectedTemplate(converted[0].id);
         }
@@ -174,7 +175,7 @@ const Print: React.FC = () => {
         loadMockProducts();
       }
     };
-    
+
     loadData();
   }, [user?.id]);
 
@@ -224,16 +225,16 @@ const Print: React.FC = () => {
     setIsLoadingProducts(true);
     try {
       const response = await egestorService.getProdutos(integracaoId, { page, filtro: searchTerm || undefined });
-      
+
       if (response.success && response.data) {
         const convertedProducts = response.data.data.map(egestorService.converterProdutoParaImpressao);
-        
+
         if (append) {
           setProducts(prev => [...prev, ...convertedProducts]);
         } else {
           setProducts(convertedProducts);
         }
-        
+
         setEgestorPage(page);
         setHasMoreProducts(response.data.data.length >= 50);
       }
@@ -269,14 +270,14 @@ const Print: React.FC = () => {
   // Função para processar código de barras lido pelo scanner
   const handleBarcodeScanned = async (barcode: string) => {
     if (!barcode.trim()) return;
-    
+
     console.log('🔍 Código de barras lido:', barcode);
-    
+
     // Primeiro, verifica se o produto já está na lista
     const existingProduct = products.find(
       p => p.barcode === barcode || p.code === barcode || p.sku === barcode
     );
-    
+
     if (existingProduct) {
       // Se já existe, seleciona e incrementa a quantidade
       setSelectedProducts(prev => {
@@ -284,13 +285,13 @@ const Print: React.FC = () => {
         newSet.add(existingProduct.id);
         return newSet;
       });
-      
+
       // Incrementar quantidade em 1
       setPrintQuantities(prev => ({
         ...prev,
         [existingProduct.id]: (prev[existingProduct.id] || 0) + 1,
       }));
-      
+
       // Scroll automático e feedback visual
       setTimeout(() => {
         const productCard = document.getElementById(`product-card-${existingProduct.id}`);
@@ -302,35 +303,35 @@ const Print: React.FC = () => {
           }, 1000);
         }
       }, 100);
-      
+
       // Limpar input e manter foco
       setScannerInput('');
       if (scannerInputRef.current) {
         scannerInputRef.current.focus();
       }
-      
+
       return;
     }
-    
+
     // Se não encontrou localmente e tem integração E-gestor, busca na API
     if (integracaoEgestor) {
       setIsLoadingProducts(true);
       try {
-        const response = await egestorService.getProdutos(integracaoEgestor.id, { 
-          page: 1, 
-          filtro: barcode 
+        const response = await egestorService.getProdutos(integracaoEgestor.id, {
+          page: 1,
+          filtro: barcode
         });
-        
+
         if (response.success && response.data && response.data.data.length > 0) {
           const foundProducts = response.data.data.map(egestorService.converterProdutoParaImpressao);
-          
+
           // Adiciona os produtos encontrados à lista (evita duplicatas)
           setProducts(prev => {
             const existingIds = new Set(prev.map(p => p.id));
             const newProducts = foundProducts.filter(p => !existingIds.has(p.id));
             return [...prev, ...newProducts];
           });
-          
+
           // Seleciona o primeiro produto encontrado
           if (foundProducts.length > 0) {
             const firstProduct = foundProducts[0];
@@ -339,13 +340,13 @@ const Print: React.FC = () => {
               newSet.add(firstProduct.id);
               return newSet;
             });
-            
+
             // Define quantidade como 1
             setPrintQuantities(prev => ({
               ...prev,
               [firstProduct.id]: 1,
             }));
-            
+
             // Scroll automático e feedback visual (aguarda o DOM atualizar)
             setTimeout(() => {
               const productCard = document.getElementById(`product-card-${firstProduct.id}`);
@@ -372,7 +373,7 @@ const Print: React.FC = () => {
       // Sem integração E-gestor
       alert(`❌ Produto não encontrado na lista: ${barcode}`);
     }
-    
+
     // Limpar input e manter foco
     setScannerInput('');
     if (scannerInputRef.current) {
@@ -407,15 +408,15 @@ const Print: React.FC = () => {
         const response = await templateService.getById(selectedTemplate);
         console.log('📥 [loadFullTemplate] Response do backend:', response);
         console.log('📥 [loadFullTemplate] Response.elements:', response.elements);
-        
+
         const converted = templateService.convertToLabelTemplate(response);
         console.log('✅ [loadFullTemplate] Template completo carregado:', converted);
         console.log('📦 [loadFullTemplate] Elements:', converted.elements);
         console.log('📦 [loadFullTemplate] Elements.length:', converted.elements?.length);
         console.log('📋 [loadFullTemplate] pagePrintConfig:', converted.pagePrintConfig);
-        
+
         setSelectedTemplateData(converted);
-        
+
         // Calcular automaticamente o layout baseado no tamanho da etiqueta
         calculateLayout(converted);
       } catch (err) {
@@ -432,14 +433,14 @@ const Print: React.FC = () => {
     // SE o template tem pagePrintConfig, usar diretamente
     if (template.pagePrintConfig) {
       console.log('📋 Usando configuração de impressão salva no template:', template.pagePrintConfig);
-      
+
       const ppc = template.pagePrintConfig;
       const isThermal = ppc.pageSizeType === 'altura-etiqueta';
-      
+
       // Determinar tamanho da página
       let pageWidth = 210;
       let pageHeight = 297;
-      
+
       if (ppc.pageSizeType === 'a4') {
         pageWidth = 210;
         pageHeight = 297;
@@ -454,7 +455,7 @@ const Print: React.FC = () => {
         pageWidth = ppc.customPageWidth || 210;
         pageHeight = ppc.customPageHeight || 297;
       }
-      
+
       // Atualizar printConfig com valores do template
       setPrintConfig(prev => ({
         ...prev,
@@ -476,31 +477,31 @@ const Print: React.FC = () => {
         labelHeight: template.config.height,
         unit: template.config.unit === 'px' ? 'mm' : template.config.unit,
       }));
-      
+
       return;
     }
-    
+
     // SE não tem pagePrintConfig, calcular automaticamente (legado)
     console.log('🔄 Template sem configuração de impressão, calculando automaticamente...');
-    
+
     // Dimensões da folha A4 em mm
     const a4Width = 210;
     const a4Height = 297;
-    
+
     // Margens padrão
     const marginTop = 10;
     const marginBottom = 10;
     const marginLeft = 10;
     const marginRight = 10;
-    
+
     // Espaçamento padrão entre etiquetas
     const spacingH = 2;
     const spacingV = 2;
-    
+
     // Dimensões da etiqueta (converter para mm se necessário)
     let labelWidth = template.config.width;
     let labelHeight = template.config.height;
-    
+
     // Converter para mm se estiver em outras unidades
     if (template.config.unit === 'cm') {
       labelWidth = labelWidth * 10;
@@ -513,15 +514,15 @@ const Print: React.FC = () => {
       labelWidth = labelWidth * 0.2645833;
       labelHeight = labelHeight * 0.2645833;
     }
-    
+
     // Área útil da folha A4
     const usableWidth = a4Width - marginLeft - marginRight;
     const usableHeight = a4Height - marginTop - marginBottom;
-    
+
     // Calcular quantas etiquetas cabem
     const columns = Math.floor((usableWidth + spacingH) / (labelWidth + spacingH));
     const rows = Math.floor((usableHeight + spacingV) / (labelHeight + spacingV));
-    
+
     console.log('📐 Layout calculado:', {
       labelWidth: template.config.width,
       labelHeight: template.config.height,
@@ -530,10 +531,10 @@ const Print: React.FC = () => {
       rows,
       totalPerPage: columns * rows
     });
-    
+
     // Determinar unidade para printConfig (não usar px)
     const printUnit = template.config.unit === 'px' ? 'mm' : template.config.unit;
-    
+
     // Atualizar configuração de impressão
     setPrintConfig({
       ...printConfig,
@@ -648,18 +649,18 @@ const Print: React.FC = () => {
   };
 
   // ===== FUNÇÕES DE IMPORTAÇÃO =====
-  
+
   // Carregar categorias do E-gestor para filtro
   const loadCategorias = async () => {
     if (!integracaoEgestor) return;
-    
+
     try {
       // Carregar categorias
       const result = await egestorService.getCategorias(integracaoEgestor.id);
       if (result.success && result.data && result.data.data) {
         setCategorias(result.data.data);
       }
-      
+
       // Carregar última sincronização
       const sincResult = await egestorService.listarSincronizacoes(integracaoEgestor.id, 1);
       if (sincResult.success && sincResult.data && sincResult.data.length > 0) {
@@ -676,45 +677,45 @@ const Print: React.FC = () => {
       alert('Informe o número da nota fiscal');
       return;
     }
-    
+
     setIsImporting(true);
     setImportResult(null);
-    
+
     try {
       const result = await egestorService.importarNFCompra(
         integracaoEgestor.id,
         importNumeroNF.trim(),
         importSerieNF.trim() || undefined
       );
-      
+
       if (result.success && result.data) {
         const itensConvertidos = result.data.itens.map(
           egestorService.converterItemImportadoParaImpressao
         );
-        
+
         // Adicionar produtos à lista
         setProducts(prev => {
           const produtosExistentes = new Set(prev.map(p => p.id));
           const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
           return [...prev, ...novosProdutos as Product[]];
         });
-        
+
         // Selecionar todos os produtos importados e definir quantidades
         const novosIds = new Set(itensConvertidos.map(p => p.id));
         setSelectedProducts(prev => new Set([...prev, ...novosIds]));
-        
+
         const novasQuantidades: Record<string, number> = {};
         result.data.itens.forEach(item => {
           novasQuantidades[item.produto_id.toString()] = item.quantidade;
         });
         setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
-        
+
         setImportResult({
           success: true,
           message: result.message || `Importados ${result.data.total_itens} itens da NF ${importNumeroNF}`,
           total: result.data.total_quantidade,
         });
-        
+
         // Fechar modal após importação bem-sucedida
         setTimeout(() => setShowImportModal(false), 1500);
       } else {
@@ -741,10 +742,10 @@ const Print: React.FC = () => {
       alert('Integração E-gestor não configurada');
       return;
     }
-    
+
     setIsImporting(true);
     setImportResult(null);
-    
+
     try {
       const result = await egestorService.importarViaSincronizacao(
         integracaoEgestor.id,
@@ -752,29 +753,29 @@ const Print: React.FC = () => {
         importCategoriaId || undefined,
         diasComparacao || undefined // Dias para comparação
       );
-      
+
       if (result.success && result.data && result.data.itens.length > 0) {
         const itensConvertidos = result.data.itens.map(
           egestorService.converterItemSincronizacaoParaImpressao
         );
-        
+
         // Adicionar produtos à lista
         setProducts(prev => {
           const produtosExistentes = new Set(prev.map(p => p.id));
           const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
           return [...prev, ...novosProdutos as Product[]];
         });
-        
+
         // Selecionar todos os produtos importados e definir quantidades
         const novosIds = new Set(itensConvertidos.map(p => p.id));
         setSelectedProducts(prev => new Set([...prev, ...novosIds]));
-        
+
         const novasQuantidades: Record<string, number> = {};
         result.data.itens.forEach(item => {
           novasQuantidades[item.produto_id.toString()] = item.quantidade;
         });
         setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
-        
+
         // Atualizar última sincronização
         if (result.data.sincronizacao_id) {
           const sincResult = await egestorService.listarSincronizacoes(integracaoEgestor.id, 1);
@@ -782,14 +783,14 @@ const Print: React.FC = () => {
             setUltimaSincronizacao(sincResult.data[0]);
           }
         }
-        
+
         setImportResult({
           success: true,
           message: result.message || `Encontradas ${result.data.total_itens} entradas (${result.data.total_quantidade} etiquetas)`,
           total: result.data.total_quantidade,
           estatisticas: result.data.estatisticas,
         });
-        
+
         // Fechar modal após importação bem-sucedida
         setTimeout(() => setShowImportModal(false), 2000);
       } else {
@@ -817,11 +818,11 @@ const Print: React.FC = () => {
       alert('Nenhum produto selecionado');
       return;
     }
-    
+
     const confirmar = window.confirm(
       `Deseja remover ${selectedProducts.size} item(s) da lista?`
     );
-    
+
     if (confirmar) {
       setProducts(prev => prev.filter(p => !selectedProducts.has(p.id)));
       setSelectedProducts(new Set());
@@ -838,7 +839,7 @@ const Print: React.FC = () => {
     const confirmar = window.confirm(
       'Deseja limpar toda a lista de produtos?'
     );
-    
+
     if (confirmar) {
       setProducts([]);
       setSelectedProducts(new Set());
@@ -854,17 +855,59 @@ const Print: React.FC = () => {
 
   // Função auxiliar para renderizar uma etiqueta como HTML e capturar como imagem
   const renderLabelToCanvas = async (template: LabelTemplate, elements: LabelElement[]): Promise<string> => {
+    // Converter unidades do template para pixels para o html2canvas
+    const getPixelsFromUnit = (value: number, unit: string) => {
+      const conversionRates = {
+        mm: 3.7795275591, // 96 DPI
+        cm: 37.795275591,
+        in: 96,
+        px: 1,
+      };
+      return value * (conversionRates[unit as keyof typeof conversionRates] || 1);
+    };
+
+    const widthPx = getPixelsFromUnit(template.config.width, template.config.unit);
+    const heightPx = getPixelsFromUnit(template.config.height, template.config.unit);
+
     // Criar um container temporário
     const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-99999px';
-    container.style.top = '-99999px';
+    container.style.position = 'fixed';
+    container.style.left = '0';
+    container.style.top = '0';
+    container.style.width = `${Math.ceil(widthPx)}px`;
+    container.style.height = `${Math.ceil(heightPx)}px`;
+    container.style.zIndex = '99999'; // Force visibility for accurate render
+    container.style.backgroundColor = 'white';
+    container.style.overflow = 'hidden';
+
+    // Inject CSS Reset specific for printing to avoid global style pollution
+    const styleReset = document.createElement('style');
+    styleReset.innerHTML = `
+      #label-capture-target * {
+        margin: 0;
+        padding: 0;
+        line-height: 1; 
+        -webkit-font-smoothing: antialiased;
+        box-sizing: border-box;
+      }
+    `;
+    container.appendChild(styleReset);
+
     document.body.appendChild(container);
+
+    // Garantir layout LTR e alinhamento à esquerda
+    container.style.display = 'block';
+    container.style.textAlign = 'left';
+    container.style.direction = 'ltr';
+
+    // Garantir que as fontes estão carregadas
+    await document.fonts.ready;
 
     // Criar o componente React do LabelCanvas
     const root = ReactDOM.createRoot(container);
-    
-    return new Promise((resolve, reject) => {
+
+    try {
+      // 3. Renderizar e Capturar
       // Desativar todas as guias visuais para impressão
       const cleanConfig = {
         ...template.config,
@@ -880,69 +923,121 @@ const Print: React.FC = () => {
           config={cleanConfig}
           elements={elements}
           selectedElementId={null}
-          onSelectElement={() => {}}
-          onUpdateElement={() => {}}
-          onDeleteElement={() => {}}
+          onSelectElement={() => { }}
+          onUpdateElement={() => { }}
+          onDeleteElement={() => { }}
           zoom={1}
+          isPrinting={true}
         />
       );
 
-      // Esperar um pouco para garantir que renderizou
-      setTimeout(async () => {
-        try {
-          const canvasElement = container.querySelector('[style*="transform"]') as HTMLElement;
-          if (!canvasElement) {
-            throw new Error('Canvas não encontrado');
+      // Esperar para garantir que o React renderizou e QR Codes/Barcodes foram gerados
+      await new Promise(resolve => setTimeout(resolve, 1200));
+
+      const captureTarget = container.querySelector('#label-capture-target') as HTMLElement;
+      if (!captureTarget) {
+        throw new Error('Canvas de impressão não encontrado');
+      }
+
+      // Capturar como imagem
+      const canvas = await html2canvas(captureTarget, {
+        backgroundColor: template.config.backgroundColor,
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        // Sincronizar viewport com o elemento a ser capturado
+        // Sincronizar viewport com o elemento a ser capturado
+        width: Math.ceil(widthPx),
+        height: Math.ceil(heightPx),
+        windowWidth: Math.ceil(widthPx),
+        windowHeight: Math.ceil(heightPx),
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        onclone: (clonedDoc: Document) => {
+          const el = clonedDoc.querySelector('#label-capture-target') as HTMLElement;
+          if (el) {
+            // ESTRATÉGIA DO QUARTO LIMPO: 
+            // 1. Limpar todo o LIXO do body do clone (evita herança de centralização, flex, scroll)
+            clonedDoc.body.innerHTML = '';
+            clonedDoc.body.style.margin = '0';
+            clonedDoc.body.style.padding = '0';
+            clonedDoc.body.style.display = 'block';
+            clonedDoc.body.style.overflow = 'hidden';
+            clonedDoc.body.style.backgroundColor = 'transparent';
+
+            // 2. Colocar apenas a etiqueta no topo zero
+            const cleanWrapper = clonedDoc.createElement('div');
+            cleanWrapper.style.position = 'fixed';
+            cleanWrapper.style.top = '0';
+            cleanWrapper.style.left = '0';
+            cleanWrapper.style.width = `${Math.ceil(widthPx)}px`;
+            cleanWrapper.style.height = `${Math.ceil(heightPx)}px`;
+            cleanWrapper.style.margin = '0';
+            cleanWrapper.style.padding = '0';
+
+            // 3. Limpar estilos de visualização da etiqueta
+            el.style.position = 'relative';
+            el.style.top = '0';
+            el.style.left = '0';
+            el.style.margin = '0';
+            el.style.boxShadow = 'none';
+            el.style.border = 'none';
+            el.style.transform = 'none';
+
+            cleanWrapper.appendChild(el);
+            clonedDoc.body.appendChild(cleanWrapper);
           }
-
-          // Capturar como imagem
-          const canvas = await html2canvas(canvasElement, {
-            backgroundColor: template.config.backgroundColor,
-            scale: 2,
-            useCORS: true,
-          });
-
-          const dataUrl = canvas.toDataURL('image/png');
-
-          // Limpar
-          root.unmount();
-          document.body.removeChild(container);
-
-          resolve(dataUrl);
-        } catch (error) {
-          root.unmount();
-          document.body.removeChild(container);
-          reject(error);
         }
-      }, 100);
-    });
+      } as any);
+
+      const dataUrl = canvas.toDataURL('image/png', 1.0);
+
+      // Limpar
+      root.unmount();
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+
+      return dataUrl;
+    } catch (error) {
+      console.error('Erro na captura do canvas:', error);
+      if (root) root.unmount();
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+      throw error;
+    }
   };
 
   // Função para abrir o preview/editor com um produto de exemplo
   const handleOpenPreviewEditor = () => {
-    if (!selectedTemplateData) {
-      alert('❌ Selecione um template primeiro!');
-      return;
-    }
-
-    if (selectedProducts.size === 0) {
-      alert('❌ Selecione pelo menos um produto para visualizar!');
+    if (!selectedTemplateData || selectedProducts.size === 0) {
+      alert('❌ Selecione um template e pelo menos um produto!');
       return;
     }
 
     // Pegar o primeiro produto selecionado como exemplo
     const firstProductId = Array.from(selectedProducts)[0];
     const product = products.find(p => p.id === firstProductId);
-    
-    if (!product) return;
+
+    if (!product) {
+      alert('❌ Produto não encontrado!');
+      return;
+    }
 
     // Criar uma cópia do template para edição temporária
     const templateCopy: LabelTemplate = {
       ...selectedTemplateData,
-      id: crypto.randomUUID(), // Novo ID temporário
-      config: { ...selectedTemplateData.config, name: `${selectedTemplateData.config.name} (Editando)` },
+      id: crypto.randomUUID(),
+      config: {
+        ...selectedTemplateData.config,
+        name: `${selectedTemplateData.config.name} (Editando)`
+      },
       elements: selectedTemplateData.elements.map(el => ({ ...el })),
-    };
+    } as LabelTemplate;
 
     // NÃO substituir variáveis - mostrar ${nome}, ${preco}, etc. para o usuário saber onde vai cada dado
     // As variáveis serão substituídas apenas na hora de imprimir
@@ -955,7 +1050,7 @@ const Print: React.FC = () => {
   // Função para atualizar elemento no template de preview
   const handleUpdatePreviewElement = (id: string, updates: Partial<LabelElement>) => {
     if (!previewTemplate) return;
-    
+
     setPreviewTemplate({
       ...previewTemplate,
       elements: previewTemplate.elements.map(el =>
@@ -967,7 +1062,7 @@ const Print: React.FC = () => {
   // Função para deletar elemento no preview
   const handleDeletePreviewElement = (id: string) => {
     if (!previewTemplate) return;
-    
+
     setPreviewTemplate({
       ...previewTemplate,
       elements: previewTemplate.elements.filter(el => el.id !== id),
@@ -992,12 +1087,12 @@ const Print: React.FC = () => {
 
       await templateService.create(request);
       alert('✅ Novo template salvo com sucesso!');
-      
+
       // Recarregar templates
       const apiTemplates = await templateService.list();
       const converted = apiTemplates.map(templateService.convertToLabelTemplate);
       setTemplates(converted);
-      
+
       setShowPreviewEditor(false);
     } catch (err: any) {
       console.error('Erro ao salvar novo template:', err);
@@ -1018,7 +1113,7 @@ const Print: React.FC = () => {
     }
 
     setIsPrinting(true);
-    
+
     try {
       // Usar o template customizado (editado) se fornecido, senão usar o selecionado
       const template = customTemplate || selectedTemplateData!;
@@ -1029,7 +1124,7 @@ const Print: React.FC = () => {
       console.log('📦 [handlePrint] template.elements?.length:', template.elements?.length);
       console.log('📋 [handlePrint] template.pagePrintConfig:', template.pagePrintConfig);
       console.log('⚙️ [handlePrint] template.config:', template.config);
-      
+
       // Debug: verificar estrutura completa
       console.log('🔍 [handlePrint] JSON.stringify(template):', JSON.stringify(template, null, 2));
 
@@ -1039,37 +1134,49 @@ const Print: React.FC = () => {
         console.error('❌ [handlePrint] template.elements:', template.elements);
         console.error('❌ [handlePrint] selectedTemplateData:', selectedTemplateData);
         console.error('❌ [handlePrint] customTemplate:', customTemplate);
-        
+
         // Mostrar opção de ir para o editor
         const goToEditor = confirm(
           '⚠️ Template Vazio\n\n' +
           'Este template não possui elementos (textos, código de barras, imagens, etc).\n\n' +
           'Deseja abrir o Editor de Etiquetas para adicionar elementos?'
         );
-        
+
         if (goToEditor && selectedTemplateData) {
           navigate(`/editor?template=${selectedTemplateData.id}`);
         }
-        
+
         setIsPrinting(false);
         return;
       }
 
-      // Usar dimensões do template
-      const labelWidth = template.config.width;
-      const labelHeight = template.config.height;
+      // Converter dimensões para mm (unidade padrão de impressão)
+      const getDimInMm = (val: number, unit: string) => {
+        if (!val) return 0;
+        if (unit === 'mm') return val;
+        if (unit === 'cm') return val * 10;
+        if (unit === 'in') return val * 25.4;
+        if (unit === 'px') return val * 0.2645833333; // ~96 DPI
+        return val;
+      };
+
+      // Usar dimensões do template convertidas para MM
+      const labelWidth = getDimInMm(template.config.width, template.config.unit);
+      const labelHeight = getDimInMm(template.config.height, template.config.unit);
+
+      // Configurações de impressão (assumindo que já estão em MM pois a UI força MM)
       const { spacingHorizontal, spacingVertical, skipLabels, pageWidth, pageHeight, pageFormat, printMode } = printConfig;
       let { columns, rows } = printConfig;
-      
+
       // Calcular dimensões do PDF (inicializar com valores padrão)
       let pdfFormat: string | [number, number] = 'a4';
       let pdfOrientation: 'portrait' | 'landscape' = 'portrait';
       const effectiveMarginTop = printConfig.marginTop;
       const effectiveMarginLeft = printConfig.marginLeft;
-      
+
       // Modos de impressão
       const isAutoMode = printMode === 'auto';
-      
+
       if (isAutoMode) {
         // Modo AUTO: cada página do PDF tem o tamanho exato da etiqueta
         pdfFormat = [labelWidth, labelHeight];
@@ -1083,24 +1190,28 @@ const Print: React.FC = () => {
           pdfFormat = 'a4';
           pdfOrientation = 'portrait';
           console.log('📄 Modo GRID - Página A4 padrão');
-        } else {
-          // Usar dimensões personalizadas (Carta, Personalizado, etc)
+        } else if (pageFormat === 'custom' || pageFormat === 'personalizado') {
+          // Usar dimensões personalizadas (já devem estar em mm)
           pdfFormat = [pageWidth, pageHeight];
           pdfOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
           console.log('📐 Modo GRID - Página personalizada:', pageWidth, 'x', pageHeight, 'mm');
+        } else {
+          // Fallback para A4
+          pdfFormat = 'a4';
+          pdfOrientation = 'portrait';
         }
       }
 
-      // Criar PDF com formato dinâmico
+      // Criar PDF com formato dinâmico - SEMPRE EM MM
       const pdf = new jsPDF({
         orientation: pdfOrientation,
-        unit: printConfig.unit || 'mm',
+        unit: 'mm',
         format: pdfFormat,
       });
-      
+
       console.log('⚙️ Configuração de impressão:', { columns, rows, labelWidth, labelHeight, skipLabels, pageWidth, pageHeight, printMode });
       console.log('📏 Dimensões do template:', { width: template.config.width, height: template.config.height, unit: template.config.unit });
-      const selectedProductsList = Array.from(selectedProducts).map(id => 
+      const selectedProductsList = Array.from(selectedProducts).map(id =>
         products.find(p => p.id === id)
       ).filter(Boolean) as Product[];
 
@@ -1115,7 +1226,7 @@ const Print: React.FC = () => {
       for (const product of selectedProductsList) {
         const quantity = getPrintQuantity(product.id);
         console.log(`🏷️ Processando produto: ${product.name} (${quantity} etiquetas)`);
-        
+
         // Substituir variáveis do template com dados do produto
         const elementsWithData = replaceTemplateVariables(
           template.elements,
@@ -1135,36 +1246,36 @@ const Print: React.FC = () => {
             abreviarNomes: printConfig.abreviarNomes,
           }
         );
-        
+
         console.log('✏️ Elementos com dados substituídos:', elementsWithData);
 
         // Renderizar etiqueta como imagem usando html2canvas (apenas uma vez por produto)
         const labelImage = await renderLabelToCanvas(template, elementsWithData);
-        
+
         // Imprimir a quantidade de etiquetas definida para este produto
         for (let copy = 0; copy < quantity; copy++) {
-          
+
           if (isAutoMode) {
             // === MODO AUTO: Uma etiqueta por página (tamanho exato da etiqueta) ===
             if (totalLabelsPrinted > 0) {
               pdf.addPage();
               currentPage++;
             }
-            
+
             // Etiqueta na posição (0, 0) ocupando toda a página
             if (printConfig.showBorders) {
               pdf.setDrawColor(200, 200, 200);
               pdf.rect(0, 0, labelWidth, labelHeight);
             }
-            
+
             pdf.addImage(labelImage, 'PNG', 0, 0, labelWidth, labelHeight);
             console.log(`📍 Etiqueta ${totalLabelsPrinted + 1} - Página ${currentPage} (${labelWidth}x${labelHeight}mm)`);
-            
+
           } else {
             // === MODO GRID: Várias etiquetas por página A4 ===
             const col = labelIndex % columns;
             const row = Math.floor((labelIndex % (columns * rows)) / columns);
-            
+
             // Se começou uma nova página, adiciona página (exceto na primeira)
             if (labelIndex > 0 && labelIndex % (columns * rows) === 0) {
               pdf.addPage();
@@ -1174,7 +1285,7 @@ const Print: React.FC = () => {
             // Calcular posição X e Y
             const x = col * (labelWidth + spacingHorizontal) + effectiveMarginLeft;
             const y = row * (labelHeight + spacingVertical) + effectiveMarginTop;
-            
+
             console.log(`📍 Etiqueta ${totalLabelsPrinted + 1}: x=${x.toFixed(1)}, y=${y.toFixed(1)}, col=${col}, row=${row}, página ${currentPage}`);
 
             // Desenhar borda se configurado
@@ -1182,13 +1293,13 @@ const Print: React.FC = () => {
               pdf.setDrawColor(200, 200, 200);
               pdf.rect(x, y, labelWidth, labelHeight);
             }
-            
+
             // Adicionar a imagem da etiqueta ao PDF
             pdf.addImage(labelImage, 'PNG', x, y, labelWidth, labelHeight);
-            
+
             labelIndex++;
           }
-          
+
           totalLabelsPrinted++;
         }
       }
@@ -1196,7 +1307,7 @@ const Print: React.FC = () => {
       // Salvar PDF
       const fileName = `etiquetas_${totalLabels}_unidades_${selectedProductsList.length}_produtos_${new Date().toISOString().split('T')[0]}.pdf`;
       pdf.save(fileName);
-      
+
       // Marcar impressão como bem-sucedida
       setLastPrintSuccess(true);
     } catch (error) {
@@ -1233,17 +1344,17 @@ const Print: React.FC = () => {
           'Este template não possui elementos (textos, código de barras, imagens, etc).\n\n' +
           'Deseja abrir o Editor de Etiquetas para adicionar elementos?'
         );
-        
+
         if (goToEditor) {
           navigate(`/editor?template=${selectedTemplateData.id}`);
         }
-        
+
         setIsGeneratingThermal(false);
         return;
       }
 
       // Montar lista de produtos com quantidade
-      const selectedProductsList = Array.from(selectedProducts).map(id => 
+      const selectedProductsList = Array.from(selectedProducts).map(id =>
         products.find(p => p.id === id)
       ).filter(Boolean) as Product[];
 
@@ -1398,11 +1509,10 @@ const Print: React.FC = () => {
                 <button
                   onClick={handleLimparLista}
                   disabled={products.length === 0}
-                  className={`px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    lastPrintSuccess 
-                      ? 'bg-green-500 text-white hover:bg-green-600' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
+                  className={`px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${lastPrintSuccess
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
                 >
                   <i className="fas fa-broom mr-2"></i>
                   Limpar Lista
@@ -1424,7 +1534,7 @@ const Print: React.FC = () => {
                       Modo Leitor de Código de Barras
                     </span>
                   </label>
-                  
+
                   {barcodeScannerMode && (
                     <div className="flex-1 flex items-center gap-2">
                       <div className="relative flex-1">
@@ -1464,7 +1574,7 @@ const Print: React.FC = () => {
                   </p>
                 )}
               </div>
-              
+
               {/* Barra de ações rápidas para quantidade - aparece quando há produtos selecionados */}
               {selectedProducts.size > 0 && (
                 <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
@@ -1574,9 +1684,8 @@ const Print: React.FC = () => {
                       <div
                         key={product.id}
                         id={`product-card-${product.id}`}
-                        className={`p-4 transition-all duration-200 ${
-                          selectedProducts.has(product.id) ? 'bg-blue-50' : 'hover:bg-gray-50'
-                        }`}
+                        className={`p-4 transition-all duration-200 ${selectedProducts.has(product.id) ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
                       >
                         <div className="flex items-center gap-3">
                           <input
@@ -1612,7 +1721,7 @@ const Print: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Controles de quantidade - aparece quando produto está selecionado */}
                         {selectedProducts.has(product.id) && (
                           <div className="mt-3 ml-8 p-3 bg-white rounded-lg border border-blue-200 shadow-sm">
@@ -1668,7 +1777,7 @@ const Print: React.FC = () => {
                         )}
                       </div>
                     ))}
-                    
+
                     {/* Botão Carregar Mais - E-gestor */}
                     {fonteDesvios === 'egestor' && hasMoreProducts && (
                       <div className="p-4 text-center border-t border-gray-100">
@@ -1737,7 +1846,7 @@ const Print: React.FC = () => {
                 <i className="fas fa-file-invoice mr-2 text-primary"></i>
                 Template de Etiqueta
               </h3>
-              
+
               {/* Lista de templates em cards em vez de select */}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {templates.length === 0 && (
@@ -1750,16 +1859,15 @@ const Print: React.FC = () => {
                   const isSelected = selectedTemplate === template.id;
                   const subtitle = generateTemplateSubtitle(template);
                   const hasConfig = !!template.pagePrintConfig;
-                  
+
                   return (
                     <button
                       key={template.id}
                       onClick={() => setSelectedTemplate(template.id)}
-                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                        isSelected 
-                          ? 'border-primary bg-primary/5' 
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
@@ -1790,7 +1898,7 @@ const Print: React.FC = () => {
                   );
                 })}
               </div>
-              
+
               {/* Aviso de template vazio */}
               {selectedTemplateData && selectedTemplateData.elements?.length === 0 && (
                 <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -1810,7 +1918,7 @@ const Print: React.FC = () => {
                   </button>
                 </div>
               )}
-              
+
               {/* Informações da configuração do template */}
               {selectedTemplateData && selectedTemplateData.pagePrintConfig && (
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -1826,7 +1934,7 @@ const Print: React.FC = () => {
                   </p>
                 </div>
               )}
-              
+
               {selectedTemplateData && !selectedTemplateData.pagePrintConfig && (
                 <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <h4 className="text-sm font-semibold text-yellow-900 mb-2 flex items-center gap-2">
@@ -1873,13 +1981,13 @@ const Print: React.FC = () => {
                 <i className="fas fa-magic text-purple-500"></i>
                 Formatação ao Imprimir
               </h4>
-              
+
               {/* Opções de PREÇO */}
               <div className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
                 <p className="text-xs font-semibold text-green-800 mb-2">
                   <i className="fas fa-dollar-sign mr-1"></i> Preço
                 </p>
-                
+
                 <div className="space-y-2">
                   {/* Opção: Ocultar centavos */}
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -1896,15 +2004,15 @@ const Print: React.FC = () => {
                       <p className="text-[10px] text-gray-500">R$ 100 em vez de R$ 100,00 (apenas quando inteiro)</p>
                     </div>
                   </label>
-                  
+
                   {/* Opção: Exibir parcelado */}
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={printConfig.exibirParcelado || false}
                       onChange={(e) =>
-                        setPrintConfig({ 
-                          ...printConfig, 
+                        setPrintConfig({
+                          ...printConfig,
                           exibirParcelado: e.target.checked,
                           exibirPrecoMascarado: false // Desativa o outro se ativar este
                         })
@@ -1916,15 +2024,15 @@ const Print: React.FC = () => {
                       <p className="text-[10px] text-gray-500">2x de R$ 50 em vez de R$ 100</p>
                     </div>
                   </label>
-                  
+
                   {/* Opção: Preço mascarado */}
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={printConfig.exibirPrecoMascarado || false}
                       onChange={(e) =>
-                        setPrintConfig({ 
-                          ...printConfig, 
+                        setPrintConfig({
+                          ...printConfig,
                           exibirPrecoMascarado: e.target.checked,
                           exibirParcelado: false // Desativa o outro se ativar este
                         })
@@ -1936,7 +2044,7 @@ const Print: React.FC = () => {
                       <p className="text-[10px] text-gray-500">CO0033 (2 letras do nome + centavos)</p>
                     </div>
                   </label>
-                  
+
                   {/* Parcelamento - só mostra se exibir parcelado */}
                   {printConfig.exibirParcelado && (
                     <div className="pl-5 pt-1 space-y-2">
@@ -1976,13 +2084,13 @@ const Print: React.FC = () => {
                   )}
                 </div>
               </div>
-              
+
               {/* Opções de NOME */}
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-xs font-semibold text-blue-800 mb-2">
                   <i className="fas fa-font mr-1"></i> Nome do Produto
                 </p>
-                
+
                 <div className="space-y-2">
                   {/* Opção: Abreviar nomes */}
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -1999,7 +2107,7 @@ const Print: React.FC = () => {
                       <p className="text-[10px] text-gray-500">"Brinco Prata" → "Brin Prat"</p>
                     </div>
                   </label>
-                  
+
                   {/* Opção: Truncar nomes */}
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input
@@ -2015,7 +2123,7 @@ const Print: React.FC = () => {
                       <p className="text-[10px] text-gray-500">Corta nomes muito longos com "..."</p>
                     </div>
                   </label>
-                  
+
                   {/* Max length - só mostra se truncar */}
                   {printConfig.truncateNames && (
                     <div className="flex items-center gap-2 pl-5 pt-1">
@@ -2056,7 +2164,7 @@ const Print: React.FC = () => {
                   </>
                 )}
               </button>
-                <div className='pt-4'></div>
+              <div className='pt-4'></div>
               {/* Botão Impressora Térmica */}
               <button
                 onClick={() => setShowThermalExport(true)}
@@ -2098,11 +2206,10 @@ const Print: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setImportMode('sincronizacao')}
-                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
-                        importMode === 'sincronizacao'
-                          ? 'border-purple-500 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 hover:border-purple-300'
-                      }`}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${importMode === 'sincronizacao'
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-purple-300'
+                        }`}
                     >
                       <i className="fas fa-sync-alt text-2xl mb-2"></i>
                       <div className="font-medium">Entrada de Estoque</div>
@@ -2110,11 +2217,10 @@ const Print: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setImportMode('nf')}
-                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
-                        importMode === 'nf'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 hover:border-blue-300'
-                      }`}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${importMode === 'nf'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-blue-300'
+                        }`}
                     >
                       <i className="fas fa-file-invoice text-2xl mb-2"></i>
                       <div className="font-medium">Nota Fiscal</div>
@@ -2141,7 +2247,7 @@ const Print: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    
+
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                       <p className="text-sm text-purple-700">
                         <i className="fas fa-info-circle mr-2"></i>
@@ -2154,7 +2260,7 @@ const Print: React.FC = () => {
                         <li>A quantidade de etiquetas = quantidade que entrou</li>
                       </ol>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         <i className="fas fa-tags mr-2"></i>
@@ -2173,7 +2279,7 @@ const Print: React.FC = () => {
                         ))}
                       </select>
                     </div>
-                    
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         <i className="fas fa-calendar-alt mr-2"></i>
@@ -2194,7 +2300,7 @@ const Print: React.FC = () => {
                         <option value="90">Últimos 3 meses</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        {diasComparacao === null 
+                        {diasComparacao === null
                           ? 'Compara com a sincronização anterior mais recente'
                           : `Compara estoque atual com o de ${diasComparacao} dia(s) atrás`
                         }
@@ -2243,14 +2349,12 @@ const Print: React.FC = () => {
 
                 {/* Resultado da importação */}
                 {importResult && (
-                  <div className={`p-4 rounded-lg ${
-                    importResult.success 
-                      ? 'bg-green-50 border border-green-200' 
-                      : 'bg-yellow-50 border border-yellow-200'
-                  }`}>
-                    <div className={`flex items-center ${
-                      importResult.success ? 'text-green-700' : 'text-yellow-700'
+                  <div className={`p-4 rounded-lg ${importResult.success
+                    ? 'bg-green-50 border border-green-200'
+                    : 'bg-yellow-50 border border-yellow-200'
                     }`}>
+                    <div className={`flex items-center ${importResult.success ? 'text-green-700' : 'text-yellow-700'
+                      }`}>
                       <i className={`fas ${importResult.success ? 'fa-check-circle' : 'fa-info-circle'} mr-2`}></i>
                       <span>{importResult.message}</span>
                     </div>
@@ -2329,11 +2433,10 @@ const Print: React.FC = () => {
                       <button
                         key={format.value}
                         onClick={() => setThermalConfig({ ...thermalConfig, format: format.value })}
-                        className={`p-3 border-2 rounded-lg text-center transition-colors ${
-                          thermalConfig.format === format.value
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-gray-200 hover:border-orange-300'
-                        }`}
+                        className={`p-3 border-2 rounded-lg text-center transition-colors ${thermalConfig.format === format.value
+                          ? 'border-orange-500 bg-orange-50 text-orange-700'
+                          : 'border-gray-200 hover:border-orange-300'
+                          }`}
                       >
                         <div className="font-bold text-sm">{format.label}</div>
                         <div className="text-xs text-gray-500 mt-1">{format.description.split(' - ')[1]}</div>
@@ -2500,11 +2603,10 @@ const Print: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={() => setPrintConfig({ ...printConfig, printMode: 'grid' })}
-                      className={`p-4 border-2 rounded-lg text-left transition-all ${
-                        printConfig.printMode === 'grid'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${printConfig.printMode === 'grid'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">📋</span>
@@ -2516,11 +2618,10 @@ const Print: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setPrintConfig({ ...printConfig, printMode: 'auto' })}
-                      className={`p-4 border-2 rounded-lg text-left transition-all ${
-                        printConfig.printMode === 'auto'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${printConfig.printMode === 'auto'
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">🎯</span>
@@ -2531,7 +2632,7 @@ const Print: React.FC = () => {
                       </div>
                     </button>
                   </div>
-                  
+
                   {printConfig.printMode === 'grid' && (
                     <p className="text-sm text-blue-600 mt-2 bg-blue-50 p-2 rounded">
                       📋 Múltiplas etiquetas numa folha A4 com layout definido (colunas × linhas)
@@ -2546,255 +2647,255 @@ const Print: React.FC = () => {
 
                 {/* Tamanho da Página - só mostra no modo grid */}
                 {printConfig.printMode === 'grid' && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">📄 Tamanho da Página</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Formato
-                      </label>
-                      <select
-                        value={printConfig.pageFormat}
-                        onChange={(e) => {
-                          const format = e.target.value as 'a4' | 'custom';
-                          if (format === 'a4') {
-                            setPrintConfig({ ...printConfig, pageFormat: format, pageWidth: 210, pageHeight: 297 });
-                          } else {
-                            setPrintConfig({ ...printConfig, pageFormat: format });
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">📄 Tamanho da Página</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Formato
+                        </label>
+                        <select
+                          value={printConfig.pageFormat}
+                          onChange={(e) => {
+                            const format = e.target.value as 'a4' | 'custom';
+                            if (format === 'a4') {
+                              setPrintConfig({ ...printConfig, pageFormat: format, pageWidth: 210, pageHeight: 297 });
+                            } else {
+                              setPrintConfig({ ...printConfig, pageFormat: format });
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        >
+                          <option value="a4">A4 (210x297mm)</option>
+                          <option value="custom">Personalizado</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Largura (mm)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="10"
+                          max="500"
+                          value={printConfig.pageWidth}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, pageWidth: parseFloat(e.target.value), pageFormat: 'custom' })
                           }
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      >
-                        <option value="a4">A4 (210x297mm)</option>
-                        <option value="custom">Personalizado</option>
-                      </select>
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                          disabled={printConfig.pageFormat === 'a4'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Altura (mm)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="10"
+                          max="500"
+                          value={printConfig.pageHeight}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, pageHeight: parseFloat(e.target.value), pageFormat: 'custom' })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                          disabled={printConfig.pageFormat === 'a4'}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Largura (mm)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="10"
-                        max="500"
-                        value={printConfig.pageWidth}
-                        onChange={(e) =>
-                          setPrintConfig({ ...printConfig, pageWidth: parseFloat(e.target.value), pageFormat: 'custom' })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                        disabled={printConfig.pageFormat === 'a4'}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Altura (mm)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="10"
-                        max="500"
-                        value={printConfig.pageHeight}
-                        onChange={(e) =>
-                          setPrintConfig({ ...printConfig, pageHeight: parseFloat(e.target.value), pageFormat: 'custom' })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                        disabled={printConfig.pageFormat === 'a4'}
-                      />
-                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Use "Personalizado" para etiquetadoras térmicas (ex: 33x21mm, 95x12mm)
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Use "Personalizado" para etiquetadoras térmicas (ex: 33x21mm, 95x12mm)
-                  </p>
-                </div>
                 )}
 
                 {/* Layout - só mostra no modo grid (manual) */}
                 {printConfig.printMode === 'grid' && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">📐 Layout da Grade</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Colunas
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={printConfig.columns}
-                        onChange={(e) =>
-                          setPrintConfig({ ...printConfig, columns: parseInt(e.target.value) })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Linhas
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="20"
-                        value={printConfig.rows}
-                        onChange={(e) =>
-                          setPrintConfig({ ...printConfig, rows: parseInt(e.target.value) })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">📐 Layout da Grade</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Colunas
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={printConfig.columns}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, columns: parseInt(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Linhas
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={printConfig.rows}
+                          onChange={(e) =>
+                            setPrintConfig({ ...printConfig, rows: parseInt(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
                 )}
 
                 {/* Espaçamentos - só mostra no modo grid */}
                 {printConfig.printMode === 'grid' && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Espaçamentos (mm)</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Horizontal
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={printConfig.spacingHorizontal}
-                        onChange={(e) =>
-                          setPrintConfig({
-                            ...printConfig,
-                            spacingHorizontal: parseFloat(e.target.value),
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Vertical
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={printConfig.spacingVertical}
-                        onChange={(e) =>
-                          setPrintConfig({
-                            ...printConfig,
-                            spacingVertical: parseFloat(e.target.value),
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">Espaçamentos (mm)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Horizontal
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={printConfig.spacingHorizontal}
+                          onChange={(e) =>
+                            setPrintConfig({
+                              ...printConfig,
+                              spacingHorizontal: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Vertical
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={printConfig.spacingVertical}
+                          onChange={(e) =>
+                            setPrintConfig({
+                              ...printConfig,
+                              spacingVertical: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
                 )}
 
                 {/* Margens - só mostra no modo grid */}
                 {printConfig.printMode === 'grid' && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Margens (mm)</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Superior
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={printConfig.marginTop}
-                        onChange={(e) =>
-                          setPrintConfig({
-                            ...printConfig,
-                            marginTop: parseFloat(e.target.value),
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Inferior
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={printConfig.marginBottom}
-                        onChange={(e) =>
-                          setPrintConfig({
-                            ...printConfig,
-                            marginBottom: parseFloat(e.target.value),
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Esquerda
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={printConfig.marginLeft}
-                        onChange={(e) =>
-                          setPrintConfig({
-                            ...printConfig,
-                            marginLeft: parseFloat(e.target.value),
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Direita
-                      </label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={printConfig.marginRight}
-                        onChange={(e) =>
-                          setPrintConfig({
-                            ...printConfig,
-                            marginRight: parseFloat(e.target.value),
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      />
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-4">Margens (mm)</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Superior
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={printConfig.marginTop}
+                          onChange={(e) =>
+                            setPrintConfig({
+                              ...printConfig,
+                              marginTop: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Inferior
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={printConfig.marginBottom}
+                          onChange={(e) =>
+                            setPrintConfig({
+                              ...printConfig,
+                              marginBottom: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Esquerda
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={printConfig.marginLeft}
+                          onChange={(e) =>
+                            setPrintConfig({
+                              ...printConfig,
+                              marginLeft: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Direita
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={printConfig.marginRight}
+                          onChange={(e) =>
+                            setPrintConfig({
+                              ...printConfig,
+                              marginRight: parseFloat(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
                 )}
 
                 {/* Pular Primeiras Etiquetas - só mostra no modo grid */}
                 {printConfig.printMode === 'grid' && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 mb-4">Etiquetas Iniciais</h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Pular Primeiras Etiquetas
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={printConfig.skipLabels}
-                      onChange={(e) =>
-                        setPrintConfig({
-                          ...printConfig,
-                          skipLabels: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                      placeholder="0"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Útil para folhas A4 parcialmente usadas. Ex: pular as primeiras 6 etiquetas
-                    </p>
+                    <h3 className="font-semibold text-gray-900 mb-4">Etiquetas Iniciais</h3>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Pular Primeiras Etiquetas
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={printConfig.skipLabels}
+                        onChange={(e) =>
+                          setPrintConfig({
+                            ...printConfig,
+                            skipLabels: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                        placeholder="0"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Útil para folhas A4 parcialmente usadas. Ex: pular as primeiras 6 etiquetas
+                      </p>
+                    </div>
                   </div>
-                </div>
                 )}
 
                 {/* Opções */}
@@ -2821,14 +2922,14 @@ const Print: React.FC = () => {
                     <i className="fas fa-magic mr-2 text-purple-500"></i>
                     Formatação Avançada
                   </h3>
-                  
+
                   {/* Opções de Preço */}
                   <div className="space-y-3 mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
                     <p className="text-sm font-medium text-green-800">
                       <i className="fas fa-dollar-sign mr-2"></i>
                       Opções de Preço
                     </p>
-                    
+
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -2843,7 +2944,7 @@ const Print: React.FC = () => {
                         <span className="text-xs text-gray-500 ml-1">(R$ 100 em vez de R$ 100,00)</span>
                       </span>
                     </label>
-                    
+
                     <div className="flex items-center gap-3">
                       <label className="text-sm text-gray-700">Parcelamento:</label>
                       <select
@@ -2866,14 +2967,14 @@ const Print: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                  
+
                   {/* Opções de Nome */}
                   <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-sm font-medium text-blue-800">
                       <i className="fas fa-font mr-2"></i>
                       Opções de Nome
                     </p>
-                    
+
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -2888,7 +2989,7 @@ const Print: React.FC = () => {
                         <span className="text-xs text-gray-500 ml-1">("Brinco Prata" → "Brin Prat")</span>
                       </span>
                     </label>
-                    
+
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -2900,7 +3001,7 @@ const Print: React.FC = () => {
                       />
                       <span className="text-sm text-gray-700">Truncar nomes longos</span>
                     </label>
-                    
+
                     {printConfig.truncateNames && (
                       <div className="flex items-center gap-2 ml-6">
                         <label className="text-sm text-gray-700">Máx. caracteres:</label>
@@ -2917,7 +3018,7 @@ const Print: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Dica de variáveis especiais */}
                   <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
                     <p className="text-sm font-medium text-purple-800 mb-2">
@@ -3013,9 +3114,9 @@ const Print: React.FC = () => {
               {/* Content */}
               <div className="flex-1 flex overflow-hidden">
                 {/* Canvas de Edição */}
-                <div className="flex-1 overflow-auto bg-gray-50 p-8">
+                <div className="flex-1 overflow-auto bg-gray-50 p-8 flex flex-col">
                   {/* Aviso sobre variáveis e Toggle */}
-                  <div className="max-w-4xl mx-auto mb-4">
+                  <div className="max-w-4xl mx-auto mb-4 w-full">
                     <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 flex-1">
@@ -3023,9 +3124,9 @@ const Print: React.FC = () => {
                           <div className="flex-1">
                             <h3 className="font-semibold text-blue-900 mb-1">Como funciona:</h3>
                             <p className="text-sm text-blue-800">
-                              Os textos como <code className="bg-blue-100 px-1 rounded font-mono">{'${nome}'}</code>, 
-                              <code className="bg-blue-100 px-1 rounded font-mono ml-1">{'${preco}'}</code>, 
-                              <code className="bg-blue-100 px-1 rounded font-mono ml-1">{'${codigo}'}</code> são 
+                              Os textos como <code className="bg-blue-100 px-1 rounded font-mono">{'${nome}'}</code>,
+                              <code className="bg-blue-100 px-1 rounded font-mono ml-1">{'${preco}'}</code>,
+                              <code className="bg-blue-100 px-1 rounded font-mono ml-1">{'${codigo}'}</code> são
                               <strong> variáveis</strong> que serão substituídas pelos dados reais de cada produto na hora de imprimir.
                             </p>
                             <p className="text-xs text-blue-700 mt-2">
@@ -3033,16 +3134,15 @@ const Print: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        
+
                         {/* Toggle Visualização */}
                         <div className="flex flex-col gap-2">
                           <button
                             onClick={() => setShowPreviewWithData(!showPreviewWithData)}
-                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                              showPreviewWithData
-                                ? 'bg-green-500 text-white hover:bg-green-600'
-                                : 'bg-blue-500 text-white hover:bg-blue-600'
-                            }`}
+                            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${showPreviewWithData
+                              ? 'bg-green-500 text-white hover:bg-green-600'
+                              : 'bg-blue-500 text-white hover:bg-blue-600'
+                              }`}
                           >
                             <i className={`fas fa-${showPreviewWithData ? 'database' : 'code'} mr-2`}></i>
                             {showPreviewWithData ? 'Ver Variáveis' : 'Ver com Dados'}
@@ -3057,36 +3157,67 @@ const Print: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Controles de Zoom */}
+                  <div className="flex justify-center items-center gap-4 mb-4 bg-white p-2 rounded-lg shadow-sm max-w-md mx-auto">
+                    <button
+                      onClick={() => setZoom(z => Math.max(1, z - 0.5))}
+                      className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Diminuir Zoom"
+                    >
+                      <i className="fas fa-minus"></i>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <i className="fas fa-search-plus text-gray-400"></i>
+                      <span className="text-sm font-medium w-16 text-center">{Math.round(zoom * 100)}%</span>
+                      <input
+                        type="range"
+                        min="1"
+                        max="8"
+                        step="0.5"
+                        value={zoom}
+                        onChange={(e) => setZoom(parseFloat(e.target.value))}
+                        className="w-32"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setZoom(z => Math.min(8, z + 0.5))}
+                      className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Aumentar Zoom"
+                    >
+                      <i className="fas fa-plus"></i>
+                    </button>
+                  </div>
+
                   <div className="flex items-center justify-center min-h-full">
                     <LabelCanvas
                       config={previewTemplate.config}
                       elements={
                         showPreviewWithData && previewProduct
                           ? replaceTemplateVariables(
-                              previewTemplate.elements,
-                              previewProduct,
-                              {
-                                truncateNames: printConfig.truncateNames,
-                                maxNameLength: printConfig.maxNameLength,
-                                priceFormat: printConfig.priceFormat,
-                                pricePrefix: printConfig.pricePrefix,
-                                // Opções de formatação de PREÇO
-                                ocultarCentavos: printConfig.ocultarCentavos,
-                                exibirParcelado: printConfig.exibirParcelado,
-                                incluirPrecoTotal: printConfig.incluirPrecoTotal,
-                                exibirPrecoMascarado: printConfig.exibirPrecoMascarado,
-                                parcelamento: printConfig.parcelamento,
-                                // Opções de formatação de NOME
-                                abreviarNomes: printConfig.abreviarNomes,
-                              }
-                            )
+                            previewTemplate.elements,
+                            previewProduct,
+                            {
+                              truncateNames: printConfig.truncateNames,
+                              maxNameLength: printConfig.maxNameLength,
+                              priceFormat: printConfig.priceFormat,
+                              pricePrefix: printConfig.pricePrefix,
+                              // Opções de formatação de PREÇO
+                              ocultarCentavos: printConfig.ocultarCentavos,
+                              exibirParcelado: printConfig.exibirParcelado,
+                              incluirPrecoTotal: printConfig.incluirPrecoTotal,
+                              exibirPrecoMascarado: printConfig.exibirPrecoMascarado,
+                              parcelamento: printConfig.parcelamento,
+                              // Opções de formatação de NOME
+                              abreviarNomes: printConfig.abreviarNomes,
+                            }
+                          )
                           : previewTemplate.elements
                       }
                       selectedElementId={selectedElementId}
                       onSelectElement={setSelectedElementId}
                       onUpdateElement={handleUpdatePreviewElement}
                       onDeleteElement={handleDeletePreviewElement}
-                      zoom={2}
+                      zoom={zoom}
                     />
                   </div>
                 </div>

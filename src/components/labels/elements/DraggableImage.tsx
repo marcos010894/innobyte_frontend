@@ -9,6 +9,7 @@ interface DraggableImageProps {
   onUpdate: (updates: Partial<ImageElementProps>) => void;
   onDelete: () => void;
   scale: number;
+  isPrinting?: boolean;
 }
 
 const DraggableImage: React.FC<DraggableImageProps> = ({
@@ -17,6 +18,7 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
   onSelect,
   onUpdate,
   scale,
+  isPrinting = false,
 }) => {
   const handleDoubleClick = () => {
     const newSrc = prompt('Cole a URL da imagem:', element.src);
@@ -36,6 +38,35 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
     }
   };
 
+  if (isPrinting) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: `${element.x}px`,
+          top: `${element.y}px`,
+          width: `${element.width}px`,
+          height: `${element.height}px`,
+          zIndex: (element.zIndex || 1),
+          overflow: 'hidden',
+          backgroundColor: element.src ? 'transparent' : '#f3f4f6',
+        }}
+      >
+        {element.src && (
+          <img
+            src={element.src}
+            alt="Label element"
+            className="w-full h-full"
+            style={{
+              objectFit: element.objectFit || 'contain',
+              opacity: element.opacity || 1,
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <Rnd
       size={{ width: element.width, height: element.height }}
@@ -54,11 +85,11 @@ const DraggableImage: React.FC<DraggableImageProps> = ({
       bounds="parent"
       scale={scale}
       disableDragging={element.locked}
-      enableResizing={!element.locked}
+      enableResizing={!element.locked && isSelected}
       style={{
         outline: isSelected ? '1px solid #3B82F6' : 'none',
         outlineOffset: '0px',
-        zIndex: element.zIndex || 1,
+        zIndex: isSelected ? 9999 : (element.zIndex || 1),
         pointerEvents: 'auto',
       }}
       onMouseDown={(e) => {

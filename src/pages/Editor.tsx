@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
+import ReactDOM from 'react-dom/client';
 import ElementsToolbar from '@/components/labels/ElementsToolbar';
 import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
@@ -10,6 +11,8 @@ import templateService from '@/services/templateService';
 import { useAuth } from '@/hooks/useAuth';
 import type { LabelTemplate, LabelConfig, LabelElement, ElementType, PagePrintConfig } from '@/types/label.types';
 import { COMMON_LABEL_SIZES as LABEL_SIZES } from '@/types/label.types';
+import egestorService, { converterProdutoParaImpressao } from '@/services/egestor.service';
+import * as integracoesService from '@/services/integracoes.service';
 
 const Editor: React.FC = () => {
   const navigate = useNavigate();
@@ -57,11 +60,21 @@ const Editor: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Preview de produto
+  const [previewProduct, setPreviewProduct] = useState<any | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  const [showStartupModal, setShowStartupModal] = useState(isNewTemplate);
+
   // Carregar template se fornecido via query param (da API)
   useEffect(() => {
     const templateId = searchParams.get('template');
     if (templateId) {
       loadTemplate(templateId);
+      setShowStartupModal(false); // Se carregando existente, não mostra modal
+    } else {
+      setShowStartupModal(true); // Se nova, mostra modal
     }
   }, [searchParams]);
 
@@ -109,19 +122,20 @@ const Editor: React.FC = () => {
     try {
       const response = await templateService.getById(id);
       const converted = templateService.convertToLabelTemplate(response);
-      
+
       // IMPORTANTE: Se não for master, sempre forçar compartilhado = false
       // Isso evita que clientes tentem salvar templates compartilhados
       if (user?.tipo !== 'master') {
         converted.compartilhado = false;
       }
-      
+
       setTemplate(converted);
       setIsNewTemplate(false); // Template carregado da API
+      setShowStartupModal(false);
     } catch (err: any) {
       console.error('Erro ao carregar template:', err);
       alert(`Erro ao carregar template: ${err.response?.data?.detail || err.message}`);
-      
+
       // Tentar carregar do localStorage como fallback
       const templates = JSON.parse(localStorage.getItem('labelTemplates') || '[]');
       const found = templates.find((t: LabelTemplate) => t.id === id);
@@ -132,21 +146,140 @@ const Editor: React.FC = () => {
         }
         setTemplate(found);
         setIsNewTemplate(false); // Template do localStorage
+        setShowStartupModal(false);
       }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Carregar produtos do eGestor para preview
+  const loadProducts = async (search?: string) => {
+    if (!user?.id) return;
+
+    setLoadingProducts(true);
+    try {
+      // 1. Buscar integração id da API de integrações
+      const responseIntegracao = await integracoesService.getIntegracoes(user.id);
+
+      let integracaoId: number | null = null;
+
+      if (responseIntegracao.success && responseIntegracao.data) {
+        const egestorIntegracao = responseIntegracao.data.data.find(
+          (i) => i.provedor === 'eGestor' && i.ativa && i.status_conexao === 'conectado'
+        );
+        if (egestorIntegracao) {
+          integracaoId = egestorIntegracao.id;
+          // Salvar no localStorage para uso futuro se necessário
+          localStorage.setItem('egestor_integration_id', integracaoId.toString());
+        }
+      }
+
+      // Se não achou na API, tenta localStorage ou valor default 1 (para testes)
+      if (!integracaoId) {
+        const saved = localStorage.getItem('egestor_integration_id');
+        integracaoId = saved ? parseInt(saved) : 1;
+      }
+
+      console.log('🔄 Tentando carregar produtos com IntegracaoID:', integracaoId);
+
+      // 2. Buscar produtos
+      const response = await egestorService.getProdutos(integracaoId, {
+        page: 1,
+        filtro: search || '',
+      });
+
+      if (response.success && response.data) {
+        setProducts(response.data.data);
+        console.log('✅ Produtos carregados:', response.data.data.length);
+        if (response.data.data.length > 0) {
+          console.log('🔍 Estrutura do primeiro produto:', response.data.data[0]);
+          console.log('🔑 Campos disponíveis:', Object.keys(response.data.data[0]));
+        }
+      } else {
+        console.warn('❌ Resposta sem produtos:', response);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar produtos:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // Carregar produtos ao montar
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  // Helper para conversão de unidades (igual ao LabelCanvas)
+  const getPixelsFromUnit = (value: number, unit: string) => {
+    const conversionRates = {
+      mm: 3.7795275591,
+      cm: 37.795275591,
+      in: 96,
+      px: 1,
+    };
+    // @ts-ignore
+    return value * (conversionRates[unit] || 1);
+  };
+
   // Adicionar novo elemento
   const handleAddElement = (type: ElementType, additionalProps?: Record<string, unknown>) => {
+    // Calcular dimensões do canvas em pixels
+    const canvasWidthPx = getPixelsFromUnit(template.config.width, template.config.unit);
+    const canvasHeightPx = getPixelsFromUnit(template.config.height, template.config.unit);
+
+    // Definir tamanhos padrão proporcionais ou fixos mas limitados e centralizar
+    let width = 100;
+    let height = 50;
+
+    switch (type) {
+      case 'text':
+        // Texto: Começar pequeno, o auto-sizing vai crescer
+        width = 20; // Mínimo, vai ajustar automaticamente
+        height = 10;
+        break;
+      case 'qrcode':
+        // QR Code: começar pequeno, usuário ajusta
+        width = 40;
+        height = 40;
+        break;
+      case 'barcode':
+        // Barcode: começar compacto
+        width = 80;
+        height = 30;
+        break;
+      case 'image':
+        width = 50;
+        height = 50;
+        break;
+      case 'rectangle':
+        width = 50;
+        height = 30;
+        break;
+    }
+
+    // Posição base: centralizada horizontalmente
+    let x = (canvasWidthPx - width) / 2;
+
+    // Offset vertical baseado no número de elementos para evitar sobreposição
+    const elementOffset = 5; // 5px de espaço entre elementos (reduzido)
+    const startY = 5; // Começar 5px do topo (reduzido)
+    let y = startY + (template.elements.length * elementOffset);
+
+    // Se passar do canvas, volta pro início com um pequeno offset horizontal
+    if (y + height > canvasHeightPx) {
+      y = startY;
+      x = x + ((template.elements.length % 3) - 1) * 30; // Varia entre -30, 0, +30
+    }
+
     const baseElement = {
       id: crypto.randomUUID(),
       type,
-      x: 50,
-      y: 50,
-      width: 100,
-      height: 50,
+      x,
+      y,
+      width,
+      height,
       zIndex: template.elements.length + 1,
       ...additionalProps,
     };
@@ -159,12 +292,12 @@ const Editor: React.FC = () => {
           ...baseElement,
           type: 'text',
           content: (additionalProps?.content as string) || 'Texto',
-          fontSize: 8,
+          fontSize: 4,
           fontFamily: 'Arial',
           fontWeight: '400',
           color: '#000000',
           textAlign: 'left',
-          noWrap: false, // Permitir quebra de linha por padrão
+          noWrap: false,
         } as LabelElement;
         break;
       case 'qrcode':
@@ -172,8 +305,8 @@ const Editor: React.FC = () => {
           ...baseElement,
           type: 'qrcode',
           value: 'https://innobyte.com',
-          width: 80,
-          height: 80,
+          width: baseElement.width, // Usar o calculado
+          height: baseElement.height, // Usar o calculado
           bgColor: '#FFFFFF',
           fgColor: '#000000',
           errorCorrectionLevel: 'M',
@@ -185,8 +318,8 @@ const Editor: React.FC = () => {
           type: 'barcode',
           value: '1234567890',
           format: additionalProps?.format || 'CODE128',
-          width: 150,
-          height: 60,
+          width: baseElement.width, // Usar o calculado
+          height: baseElement.height, // Usar o calculado
           displayValue: true,
         } as LabelElement;
         break;
@@ -255,12 +388,15 @@ const Editor: React.FC = () => {
   // Salvar template na API
   const handleSaveTemplate = async () => {
     setIsSaving(true);
-    
+
     try {
+      // Limpar preview para evitar conflitos de renderização durante o salvamento
+      setPreviewProduct(null);
+
       // Gerar thumbnail do canvas
       const canvasEl = canvasWrapperRef.current?.querySelector('[style*="transform"]');
       let thumbnail = '';
-      
+
       if (canvasEl) {
         try {
           const canvas = await html2canvas(canvasEl as HTMLElement, {
@@ -279,7 +415,7 @@ const Editor: React.FC = () => {
         // Clientes e colaboradores NÃO podem compartilhar templates (apenas master)
         const canShare = user?.tipo === 'master';
         const compartilhado = canShare ? (template.compartilhado || false) : false;
-        
+
         // Log para debug
         console.log('🔒 Salvando template:', {
           userTipo: user?.tipo,
@@ -287,26 +423,26 @@ const Editor: React.FC = () => {
           compartilhadoOriginal: template.compartilhado,
           compartilhadoFinal: compartilhado,
         });
-        
+
         // Aviso se cliente tentar compartilhar
         if (!canShare && template.compartilhado) {
           console.warn('⚠️ Cliente tentou salvar como compartilhado - bloqueado!');
         }
-        
+
         // Passa canShare para indicar se deve incluir compartilhado
         const request = templateService.convertToCreateRequest({
           ...template,
           thumbnail,
           compartilhado,
         }, canShare);
-        
+
         const response = await templateService.create(request);
         alert('✅ Template criado com sucesso!');
-        
+
         // Atualizar estado com o template criado (com ID do backend)
         setTemplate(templateService.convertToLabelTemplate(response));
         setIsNewTemplate(false);
-        
+
         // Opcional: redirecionar para a lista
         // navigate('/templates');
       } else {
@@ -314,7 +450,7 @@ const Editor: React.FC = () => {
         // Clientes e colaboradores NÃO podem compartilhar templates (apenas master)
         const canShare = user?.tipo === 'master';
         const compartilhado = canShare ? (template.compartilhado || false) : false;
-        
+
         // Log para debug
         console.log('🔒 Atualizando template:', {
           userTipo: user?.tipo,
@@ -322,12 +458,12 @@ const Editor: React.FC = () => {
           compartilhadoOriginal: template.compartilhado,
           compartilhadoFinal: compartilhado,
         });
-        
+
         // Aviso se cliente tentar compartilhar
         if (!canShare && template.compartilhado) {
           console.warn('⚠️ Cliente tentou atualizar como compartilhado - bloqueado!');
         }
-        
+
         // Monta os dados para atualização
         // IMPORTANTE: Não envia compartilhado se não for master (backend bloqueia)
         const updateData: any = {
@@ -339,19 +475,19 @@ const Editor: React.FC = () => {
           thumbnail,
           page_print_config: template.pagePrintConfig, // INCLUIR configuração de impressão
         };
-        
+
         // DEBUG: Log para verificar o que está sendo enviado
         console.log('📤 [handleSave] updateData:', updateData);
         console.log('📤 [handleSave] elements:', updateData.elements);
         console.log('📤 [handleSave] elements.length:', updateData.elements?.length);
         console.log('📤 [handleSave] page_print_config:', updateData.page_print_config);
         console.log('📤 [handleSave] JSON.stringify(updateData):', JSON.stringify(updateData, null, 2));
-        
+
         // Apenas master pode enviar o campo compartilhado
         if (canShare) {
           updateData.compartilhado = compartilhado;
         }
-        
+
         await templateService.update(template.id, updateData);
         alert('✅ Template atualizado com sucesso!');
       }
@@ -366,22 +502,84 @@ const Editor: React.FC = () => {
 
   // Exportar como PNG
   const handleExportPNG = async () => {
-    const canvas = canvasWrapperRef.current?.querySelector('[style*="transform"]');
-    if (!canvas) return;
+    // 1. Converter unidades (96 DPI padrão do navegador)
+    const getPixelsFromUnit = (value: number, unit: string) => {
+      const rates = { mm: 3.7795275591, cm: 37.795275591, in: 96, px: 1 };
+      return value * (rates[unit as keyof typeof rates] || 1);
+    };
+
+    const w = Math.ceil(getPixelsFromUnit(template.config.width, template.config.unit));
+    const h = Math.ceil(getPixelsFromUnit(template.config.height, template.config.unit));
+
+    // 2. Criar container no topo da tela (fixo) para garantir coordenadas (0,0)
+    const container = document.createElement('div');
+    container.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: ${w}px;
+      height: ${h}px;
+      z-index: 999999;
+      background: white;
+      overflow: hidden;
+    `;
+    document.body.appendChild(container);
 
     try {
-      const canvasEl = await html2canvas(canvas as HTMLElement, {
+      setIsSaving(true);
+      await document.fonts.ready;
+
+      // 3. Renderizar com o root real
+      const root = ReactDOM.createRoot(container);
+      root.render(
+        <LabelCanvas
+          config={{ ...template.config, showGrid: false, showCenterLine: false, showMargins: false, showBorders: false }}
+          elements={template.elements}
+          previewProduct={previewProduct}
+          selectedElementId={null}
+          onSelectElement={() => { }}
+          onUpdateElement={() => { }}
+          onDeleteElement={() => { }}
+          zoom={1}
+          isPrinting={true}
+        />
+      );
+
+      // 4. Tempo de estabilização maior
+      await new Promise(resolve => setTimeout(resolve, 1200));
+
+      const captureTarget = container.querySelector('#label-capture-target') as HTMLElement;
+      if (!captureTarget) throw new Error('Falha ao localizar etiqueta para captura');
+
+      // 5. Captura direta. Como está em fixed(0,0), o html2canvas gera o recorte exato.
+      const canvas = await html2canvas(captureTarget, {
+        scale: 4,
+        useCORS: true,
+        allowTaint: true,
         backgroundColor: template.config.backgroundColor,
-        scale: 2,
+        // SEM x, y, windowWidth manuais para evitar desalinhamento do motor interno
+        onclone: (clonedDoc: Document) => {
+          const el = clonedDoc.querySelector('#label-capture-target') as HTMLElement;
+          if (el) {
+            el.style.boxShadow = 'none';
+            el.style.border = 'none';
+          }
+        }
       });
 
       const link = document.createElement('a');
       link.download = `${template.config.name}.png`;
-      link.href = canvasEl.toDataURL('image/png');
+      link.href = canvas.toDataURL('image/png', 1.0);
       link.click();
+
+      // Limpar
+      root.unmount();
+      document.body.removeChild(container);
     } catch (error) {
       console.error('Erro ao exportar PNG:', error);
       alert('Erro ao exportar PNG');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -455,7 +653,48 @@ const Editor: React.FC = () => {
                   <p className="text-xs text-gray-500 hidden sm:block">
                     {template.config.width} × {template.config.height} {template.config.unit}
                   </p>
-                  
+
+                  {/* Seletor de Produto para Preview */}
+                  <div className="hidden lg:block">
+                    <select
+                      value={previewProduct?.id || ''}
+                      onChange={(e) => {
+                        const produtoId = e.target.value;
+                        if (produtoId) {
+                          const produto = products.find(p => p.codigo.toString() === produtoId);
+                          if (produto) {
+                            // Converter usando o helper do serviço
+                            // Precisamos fazer cast para as interfaces coincidirem se necessário, 
+                            // mas o converter já retorna o formato certo
+                            const preview = converterProdutoParaImpressao(produto);
+                            setPreviewProduct(preview);
+                          } else {
+                            setPreviewProduct(null);
+                          }
+                        } else {
+                          setPreviewProduct(null);
+                        }
+                      }}
+                      disabled={loadingProducts}
+                      className="text-xs border border-purple-300 rounded px-2 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors max-w-xs disabled:opacity-50"
+                      title="Preview com produto do eGestor">
+                      {loadingProducts ? (
+                        <option>Carregando produtos...</option>
+                      ) : products.length === 0 ? (
+                        <option>Nenhum produto encontrado</option>
+                      ) : (
+                        <>
+                          <option value="">Modo Edição (Variáveis)</option>
+                          {products.map((prod) => (
+                            <option key={prod.codigo} value={prod.codigo}>
+                              {prod.nome} {prod.codigoBarras ? `(${prod.codigoBarras})` : ''}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
+
                   {/* Checkbox Compartilhado - apenas para MASTER */}
                   {user?.tipo === 'master' && (
                     <label className="flex items-center gap-1 text-xs text-gray-600 cursor-pointer hover:text-primary">
@@ -509,19 +748,30 @@ const Editor: React.FC = () => {
         {/* Linha 2: Ferramentas e Visualização */}
         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
           {/* Zoom */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1">
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-2 py-1">
             <button
-              onClick={() => setZoom(Math.max(0.5, zoom - 0.2))}
+              onClick={() => setZoom(Math.max(1, zoom - 0.5))}
               className="text-gray-600 hover:text-gray-800 p-1"
               title="Diminuir zoom"
             >
               <i className="fas fa-minus text-xs"></i>
             </button>
-            <span className="text-xs font-medium text-gray-700 min-w-[40px] text-center">
-              {Math.round(zoom * 100)}%
-            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="1"
+                max="8"
+                step="0.5"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-24 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <span className="text-xs font-medium text-gray-700 min-w-[40px] text-center">
+                {Math.round(zoom * 100)}%
+              </span>
+            </div>
             <button
-              onClick={() => setZoom(Math.min(4, zoom + 0.2))}
+              onClick={() => setZoom(Math.min(8, zoom + 0.5))}
               className="text-gray-600 hover:text-gray-800 p-1"
               title="Aumentar zoom"
             >
@@ -535,11 +785,10 @@ const Editor: React.FC = () => {
           <div className="flex items-center gap-1">
             <button
               onClick={() => handleUpdateConfig({ showGrid: !template.config.showGrid })}
-              className={`p-2 rounded-lg text-xs transition-colors ${
-                template.config.showGrid
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`p-2 rounded-lg text-xs transition-colors ${template.config.showGrid
+                ? 'bg-primary text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               title="Grade"
             >
               <i className="fas fa-th"></i>
@@ -547,11 +796,10 @@ const Editor: React.FC = () => {
 
             <button
               onClick={() => handleUpdateConfig({ showMargins: !template.config.showMargins })}
-              className={`p-2 rounded-lg text-xs transition-colors ${
-                template.config.showMargins
-                  ? 'bg-red-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`p-2 rounded-lg text-xs transition-colors ${template.config.showMargins
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               title="Margens"
             >
               <i className="fas fa-compress-arrows-alt"></i>
@@ -559,11 +807,10 @@ const Editor: React.FC = () => {
 
             <button
               onClick={() => handleUpdateConfig({ showCenterLine: !template.config.showCenterLine })}
-              className={`p-2 rounded-lg text-xs transition-colors ${
-                template.config.showCenterLine
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`p-2 rounded-lg text-xs transition-colors ${template.config.showCenterLine
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               title="Linha Central"
             >
               <i className="fas fa-arrows-alt-h"></i>
@@ -571,11 +818,10 @@ const Editor: React.FC = () => {
 
             <button
               onClick={() => handleUpdateConfig({ showBorders: !template.config.showBorders })}
-              className={`p-2 rounded-lg text-xs transition-colors ${
-                template.config.showBorders
-                  ? 'bg-black text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`p-2 rounded-lg text-xs transition-colors ${template.config.showBorders
+                ? 'bg-black text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               title="Bordas"
             >
               <i className="fas fa-border-style"></i>
@@ -646,7 +892,7 @@ const Editor: React.FC = () => {
         <ElementsToolbar onAddElement={handleAddElement} />
 
         {/* Canvas */}
-        <div ref={canvasWrapperRef} className="flex-1">
+        <div ref={canvasWrapperRef} className="flex-1 flex flex-col min-h-0 relative">
           <LabelCanvas
             config={template.config}
             elements={template.elements}
@@ -655,6 +901,8 @@ const Editor: React.FC = () => {
             onUpdateElement={handleUpdateElement}
             onDeleteElement={handleDeleteElement}
             zoom={zoom}
+            previewProduct={previewProduct}
+            pagePrintConfig={template.pagePrintConfig}
           />
         </div>
 
@@ -802,7 +1050,7 @@ const Editor: React.FC = () => {
                   }));
                 }}
               />
-              
+
               <div className="mt-6 pt-4 border-t flex justify-end gap-3">
                 <button
                   onClick={() => setShowPagePrintConfig(false)}
@@ -815,6 +1063,118 @@ const Editor: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Setup Inicial (Nova Etiqueta) */}
+      {showStartupModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in-up">
+            <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white text-center">
+              <i className="fas fa-magic text-4xl mb-3 opacity-90"></i>
+              <h2 className="text-2xl font-bold">Nova Etiqueta</h2>
+              <p className="text-blue-100 mt-1">Configure as dimensões iniciais</p>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Nome da Etiqueta
+                </label>
+                <input
+                  type="text"
+                  value={template.config.name}
+                  onChange={(e) => handleUpdateConfig({ name: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-lg"
+                  placeholder="Ex: Etiqueta de Joia"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Largura
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={template.config.width}
+                      onChange={(e) => handleUpdateConfig({ width: parseFloat(e.target.value) })}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-lg font-mono"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
+                      {template.config.unit}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    Altura
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={template.config.height}
+                      onChange={(e) => handleUpdateConfig({ height: parseFloat(e.target.value) })}
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-lg font-mono"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">
+                      {template.config.unit}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  Unidade de Medida
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['mm', 'cm', 'in', 'px'].map((u) => (
+                    <button
+                      key={u}
+                      onClick={() => handleUpdateConfig({ unit: u as any })}
+                      className={`py-2 rounded-lg font-medium transition-all ${template.config.unit === u
+                        ? 'bg-primary text-white shadow-md transform scale-105'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  onClick={() => setShowStartupModal(false)}
+                  className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                >
+                  <i className="fas fa-check mr-2"></i>
+                  Criar Etiqueta
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Footer Fixo com Instruções */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 py-2 px-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 flex items-center justify-center gap-6 text-sm text-gray-600">
+        <div className="flex items-center gap-2">
+          <kbd className="bg-gray-100 border border-gray-300 rounded px-2 py-0.5 font-sans font-semibold text-xs text-gray-500">Ctrl</kbd>
+          <span>+ Arrastar para mover</span>
+        </div>
+        <div className="h-4 w-px bg-gray-300"></div>
+        <div className="flex items-center gap-2">
+          <kbd className="bg-gray-100 border border-gray-300 rounded px-2 py-0.5 font-sans font-semibold text-xs text-gray-500">Del</kbd>
+          <span>Excluir</span>
+        </div>
+        <div className="h-4 w-px bg-gray-300"></div>
+        <div className="flex items-center gap-2">
+          <kbd className="bg-gray-100 border border-gray-300 rounded px-2 py-0.5 font-sans font-semibold text-xs text-gray-500">↑↓←→</kbd>
+          <span>Ajuste fino</span>
+        </div>
+      </div>
 
       {/* Modal de Ajuda - Variáveis Disponíveis */}
       {showVariablesHelp && (
@@ -863,7 +1223,7 @@ const Editor: React.FC = () => {
               {/* Lista de Variáveis */}
               <div className="space-y-3">
                 <h3 className="font-semibold text-gray-800 text-lg">Variáveis de Produto:</h3>
-                
+
                 <div className="grid gap-3">
                   {/* Nome */}
                   <div className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-colors">
@@ -1102,7 +1462,7 @@ const Editor: React.FC = () => {
                   Variáveis especiais que dependem das configurações de impressão. Configure-as na tela de impressão.
                 </p>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  
+
                   {/* Preço Mascarado */}
                   <div className="border border-orange-200 rounded-lg p-4 bg-white hover:border-orange-400 transition-colors">
                     <div className="flex items-start gap-3">

@@ -5,14 +5,14 @@ export type ElementType = 'text' | 'qrcode' | 'barcode' | 'image' | 'rectangle' 
 export type TextAlign = 'left' | 'center' | 'right';
 
 // Tipo de código de barras
-export type BarcodeFormat = 
-  | 'CODE128' 
-  | 'EAN13' 
-  | 'EAN8' 
-  | 'UPC' 
-  | 'CODE39' 
-  | 'ITF14' 
-  | 'MSI' 
+export type BarcodeFormat =
+  | 'CODE128'
+  | 'EAN13'
+  | 'EAN8'
+  | 'UPC'
+  | 'CODE39'
+  | 'ITF14'
+  | 'MSI'
   | 'pharmacode';
 
 // Propriedades base de qualquer elemento
@@ -89,12 +89,12 @@ export interface LineElementProps extends BaseElementProps {
 }
 
 // Union type de todos os elementos
-export type LabelElement = 
-  | TextElementProps 
-  | QRCodeElementProps 
-  | BarcodeElementProps 
-  | ImageElementProps 
-  | RectangleElementProps 
+export type LabelElement =
+  | TextElementProps
+  | QRCodeElementProps
+  | BarcodeElementProps
+  | ImageElementProps
+  | RectangleElementProps
   | LineElementProps;
 
 // Unidades de medida para etiquetas
@@ -107,25 +107,25 @@ export type PageSizeType = 'a4' | 'carta' | 'altura-etiqueta' | 'personalizado';
 export interface PagePrintConfig {
   // Tipo de página
   pageSizeType: PageSizeType; // 'a4' | 'carta' | 'altura-etiqueta' | 'personalizado'
-  
+
   // Dimensões personalizadas (usado quando pageSizeType = 'personalizado')
   customPageWidth?: number;
   customPageHeight?: number;
-  
+
   // Layout (aplicável para folha A4/Carta/Personalizado)
   columns: number; // Número de colunas
   rows?: number; // Número de linhas (apenas para folha, não para térmica)
-  
+
   // Margens (em mm)
   marginTop?: number; // Margem superior (não usado em 'altura-etiqueta')
   marginBottom?: number; // Margem inferior (não usado em 'altura-etiqueta')
   marginLeft: number; // Margem esquerda
   marginRight?: number; // Margem direita
-  
+
   // Espaçamentos entre etiquetas (em mm)
   spacingHorizontal: number; // Espaçamento horizontal entre colunas
   spacingVertical?: number; // Espaçamento vertical (não usado em 'altura-etiqueta')
-  
+
   // Opções visuais
   showBorders?: boolean; // Mostrar bordas na pré-visualização
   skipLabels?: number; // Pular primeiras N etiquetas (para folhas parcialmente usadas)
@@ -154,7 +154,7 @@ export interface LabelConfig {
   showGrid?: boolean;
   gridSize?: number;
   snapToGrid?: boolean;
-  
+
   // Configurações avançadas
   columns?: number; // Número de colunas
   rows?: number; // Número de linhas (para A4)
@@ -194,7 +194,7 @@ export interface LabelTemplate {
   isPublic?: boolean;
   userId?: string;
   compartilhado?: boolean;
-  
+
   // NOVA: Configuração de página/impressão vinculada ao template
   pagePrintConfig?: PagePrintConfig;
 }
@@ -233,6 +233,7 @@ export const COMMON_LABEL_SIZES: LabelSize[] = [
 
 // Fontes disponíveis
 export const AVAILABLE_FONTS = [
+  'Inter',
   'Arial',
   'Helvetica',
   'Times New Roman',
@@ -252,7 +253,7 @@ export const AVAILABLE_FONTS = [
 ];
 
 // Tamanhos de fonte comuns
-export const FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
+export const FONT_SIZES = [4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
 
 // Pesos de fonte
 export const FONT_WEIGHTS = [
@@ -292,21 +293,21 @@ export const PAGE_SIZES = {
 export function generateTemplateSubtitle(template: LabelTemplate): string {
   const { width, height, unit } = template.config;
   const pagePrint = template.pagePrintConfig;
-  
+
   if (!pagePrint) {
     return `${width}×${height} ${unit}`;
   }
-  
+
   const parts: string[] = [];
-  
+
   // Dimensões
   parts.push(`${width}×${height} ${unit}`);
-  
+
   // Colunas
   if (pagePrint.columns > 1) {
     parts.push(`${pagePrint.columns} col`);
   }
-  
+
   // Tipo de página
   if (pagePrint.pageSizeType === 'a4') {
     parts.push('A4');
@@ -317,7 +318,7 @@ export function generateTemplateSubtitle(template: LabelTemplate): string {
   } else if (pagePrint.pageSizeType === 'personalizado') {
     parts.push('Personalizado');
   }
-  
+
   // Total por folha (apenas para folha)
   if (pagePrint.pageSizeType !== 'altura-etiqueta' && pagePrint.rows) {
     const total = pagePrint.columns * pagePrint.rows;
@@ -325,6 +326,6 @@ export function generateTemplateSubtitle(template: LabelTemplate): string {
   } else if (pagePrint.pageSizeType === 'altura-etiqueta') {
     parts.push('usada em impressoras térmicas');
   }
-  
+
   return parts.join(' • ');
 }

@@ -113,12 +113,14 @@ class TemplateService {
    * Converte TemplateResponse para LabelTemplate (formato frontend)
    */
   convertToLabelTemplate(response: TemplateResponse): LabelTemplate {
-    console.log('🔄 [convertToLabelTemplate] Response completa:', JSON.stringify(response, null, 2));
-    console.log('🔄 [convertToLabelTemplate] Elements recebidos:', response.elements);
-    console.log('🔄 [convertToLabelTemplate] Type of elements:', typeof response.elements);
-    console.log('🔄 [convertToLabelTemplate] Is Array?:', Array.isArray(response.elements));
-    console.log('🔄 [convertToLabelTemplate] page_print_config:', response.page_print_config);
-    
+    if (!response) {
+      console.error('❌ [convertToLabelTemplate] Response inválida/nula');
+      throw new Error('Resposta da API inválida ao converter template');
+    }
+
+    // Validar visualização de debug
+    console.log('🔄 [convertToLabelTemplate] Validando config...');
+
     // Validar que config existe e tem estrutura mínima
     const config = response.config || {
       name: response.nome || 'Template sem nome',
@@ -134,45 +136,46 @@ class TemplateService {
 
     // Garantir que elements é um array válido
     let elements = response.elements || [];
-    
-    console.log('🔄 [convertToLabelTemplate] Elements antes do processamento:', elements);
-    
+
     // Se elements for string (JSON), fazer parse
     if (typeof elements === 'string') {
       try {
         elements = JSON.parse(elements);
-        console.log('🔄 [convertToLabelTemplate] Elements após parse:', elements);
       } catch (err) {
         console.error('❌ [convertToLabelTemplate] Erro ao fazer parse de elements:', err);
         elements = [];
       }
     }
-    
+
     // Se não for array, tentar extrair de alguma propriedade
     if (!Array.isArray(elements)) {
       console.warn('⚠️ [convertToLabelTemplate] Elements não é array:', elements);
       elements = [];
     }
-    
-    console.log('🔄 [convertToLabelTemplate] Elements final:', elements);
-    console.log('🔄 [convertToLabelTemplate] Elements.length:', elements.length);
+
+    // Datas seguras
+    const safeDate = (dateStr?: string) => {
+      if (!dateStr) return new Date();
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? new Date() : d;
+    };
 
     const converted = {
       id: response.id,
       config: config,
       elements: elements,
-      createdAt: new Date(response.created_at),
-      updatedAt: new Date(response.updated_at),
-      thumbnail: response.thumbnail,
-      category: response.categoria,
+      createdAt: safeDate(response.created_at),
+      updatedAt: safeDate(response.updated_at),
+      thumbnail: response.thumbnail || undefined,
+      category: response.categoria || undefined,
       compartilhado: response.compartilhado || false,
-      pagePrintConfig: response.page_print_config,
+      pagePrintConfig: response.page_print_config || undefined,
     };
-    
+
     console.log('✅ [convertToLabelTemplate] Template convertido final:', converted);
     console.log('✅ [convertToLabelTemplate] Elements no template convertido:', converted.elements);
     console.log('✅ [convertToLabelTemplate] Elements.length no convertido:', converted.elements.length);
-    
+
     return converted;
   }
 
@@ -185,7 +188,7 @@ class TemplateService {
     // Obter id_empresa do localStorage - prioriza user_data (novo) ou user (legado)
     const userData = localStorage.getItem('user_data') || localStorage.getItem('user');
     let id_empresa: number | null = null;
-    
+
     if (userData) {
       try {
         const user = JSON.parse(userData);
@@ -199,17 +202,17 @@ class TemplateService {
         console.error('Erro ao parsear dados do usuário:', err);
       }
     }
-    
+
     // Se não encontrou empresa, usa 1 apenas para master (fallback)
     const userType = localStorage.getItem('user_type');
     if (!id_empresa && userType === 'master') {
       id_empresa = 1;
     }
-    
+
     if (!id_empresa) {
       console.error('⚠️ Nenhuma empresa encontrada para o usuário. Verifique o login.');
     }
-    
+
     const request: CreateTemplateRequest = {
       id_empresa: id_empresa || 1,
       nome: template.config.name,
@@ -220,12 +223,12 @@ class TemplateService {
       thumbnail: template.thumbnail,
       page_print_config: template.pagePrintConfig,
     };
-    
+
     // Apenas inclui compartilhado se permitido (master)
     if (includeCompartilhado) {
       request.compartilhado = template.compartilhado || false;
     }
-    
+
     return request;
   }
 }

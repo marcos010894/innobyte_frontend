@@ -9,6 +9,7 @@ interface DraggableRectangleProps {
   onUpdate: (updates: Partial<RectangleElementProps>) => void;
   onDelete: () => void;
   scale: number;
+  isPrinting?: boolean;
 }
 
 const DraggableRectangle: React.FC<DraggableRectangleProps> = ({
@@ -17,7 +18,26 @@ const DraggableRectangle: React.FC<DraggableRectangleProps> = ({
   onSelect,
   onUpdate,
   scale,
+  isPrinting = false,
 }) => {
+  if (isPrinting) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: `${element.x}px`,
+          top: `${element.y}px`,
+          width: `${element.width}px`,
+          height: `${element.height}px`,
+          zIndex: (element.zIndex || 1),
+          backgroundColor: element.fillColor || 'transparent',
+          border: element.borderWidth ? `${element.borderWidth}px solid ${element.borderColor || '#000'}` : 'none',
+          borderRadius: `${element.borderRadius || 0}px`,
+        }}
+      />
+    );
+  }
+
   return (
     <Rnd
       size={{ width: element.width, height: element.height }}
@@ -36,11 +56,11 @@ const DraggableRectangle: React.FC<DraggableRectangleProps> = ({
       bounds="parent"
       scale={scale}
       disableDragging={element.locked}
-      enableResizing={!element.locked}
+      enableResizing={!element.locked && isSelected}
       style={{
         outline: isSelected ? '1px solid #3B82F6' : 'none',
         outlineOffset: '0px',
-        zIndex: element.zIndex || 1,
+        zIndex: isSelected ? 9999 : (element.zIndex || 1),
         pointerEvents: 'auto',
       }}
       onMouseDown={(e) => {

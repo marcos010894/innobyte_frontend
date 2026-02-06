@@ -269,10 +269,14 @@ export const testarConexao = async (
  * Converter produto do E-gestor para formato do sistema de impressão
  */
 export const converterProdutoParaImpressao = (produto: EgestorProduto) => {
+  console.log('DEBUG SKU:', produto);
+  const skuCode = produto.codigoProprio?.trim() || produto.referencia?.trim() || produto.codigo.toString();
+
   return {
     id: produto.codigo.toString(),
     name: produto.nome,
-    code: produto.codigoProprio || produto.referencia || produto.codigo.toString(), // Prioriza código próprio (SKU)
+    code: skuCode, // Prioriza código próprio (SKU)
+    sku: skuCode, // Mapeia também para o campo SKU para funcionar com a variável ${sku}
     price: produto.preco || 0,
     quantity: produto.estoque || 0,
     category: produto.categoria?.nome || 'Sem categoria',
