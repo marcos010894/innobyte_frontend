@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import type { Product, PrintConfig } from '@/types/product.types';
 import type { LabelTemplate, LabelElement } from '@/types/label.types';
 import { replaceTemplateVariables } from '@/utils/templateVariables';

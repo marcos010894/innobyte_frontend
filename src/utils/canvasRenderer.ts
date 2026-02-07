@@ -2,7 +2,7 @@ import type { LabelElement, LabelConfig, PagePrintConfig } from '@/types/label.t
 import type { Product } from '@/types/product.types';
 import { replaceVariables } from './templateVariables';
 import JsBarcode from 'jsbarcode';
-import QRCode from 'qrcode';
+import * as QRCode from 'qrcode';
 
 /**
  * Renderiza elementos de etiqueta diretamente em um Canvas nativo

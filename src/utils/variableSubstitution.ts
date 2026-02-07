@@ -28,7 +28,7 @@ export const substituteVariables = (text: string, product: any | null): string =
     // Regex para encontrar padrões:
     // \$\{([^}]+)\}  -> captura ${nome}, ${codigo}
     // \$([a-zA-Z]+)  -> captura $nome, $codigo
-    return text.replace(/(\$\{([^}]+)\})|(\$([a-zA-Z]+))/g, (match, p1, p2, p3, p4) => {
+    return text.replace(/(\$\{([^}]+)\})|(\$([a-zA-Z]+))/g, (match, _p1, p2, _p3, p4) => {
         // p2 é o conteúdo dentro de ${ }
         // p4 é o conteúdo após $
         const variableName = p2 || p4;

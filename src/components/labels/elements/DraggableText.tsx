@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { replaceVariables } from '@/utils/templateVariables';
 import type { TextElementProps, PagePrintConfig } from '@/types/label.types';
