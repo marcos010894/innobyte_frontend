@@ -140,28 +140,40 @@ const DraggableText: React.FC<DraggableTextProps> = ({
 
   // Single Div Strategy for standardizing print output and fixing html2canvas shifts
   if (isPrinting) {
+    // CRITICAL: Do NOT spread textStyle here - it contains display:flex which causes offset!
+    // Create completely clean styles for print mode
     return (
       <div
         style={{
-          ...textStyle,
+          // Positioning
           position: 'absolute',
-          transform: `translate(${element.x}px, ${element.y}px)`,
-          left: 0,
-          top: 0,
+          left: `${element.x}px`,
+          top: `${element.y}px`,
           width: `${element.width}px`,
           height: `${element.height}px`,
           zIndex: (element.zIndex || 1),
-          // Reset global styles just in case
+
+          // Reset everything
           margin: 0,
           padding: 0,
+          border: 'none',
           boxSizing: 'border-box',
-          // Explicitly force Block layout
-          display: 'block',
-          textAlign: element.textAlign || 'left',
-          // Ensure line-height matches editor
+
+          // Text styling only - NO FLEXBOX!
+          fontSize: `${currentFontSize}px`,
+          fontFamily: element.fontFamily || 'Arial',
+          fontWeight: element.fontWeight,
+          color: element.color,
+          fontStyle: element.italic ? 'italic' : 'normal',
+          textDecoration: element.underline ? 'underline' : 'none',
           lineHeight: element.lineHeight || 1.1,
-          justifyContent: undefined,
-          alignItems: undefined,
+          textAlign: element.textAlign || 'left',
+          whiteSpace: element.noWrap ? 'nowrap' : 'pre-wrap',
+          wordBreak: 'break-word',
+          overflow: 'visible',
+
+          // CRITICAL: Use block display, NOT flex!
+          display: 'block',
         }}
       >
         {content}

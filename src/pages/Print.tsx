@@ -10,10 +10,12 @@ import { generateTemplateSubtitle } from '@/types/label.types';
 import templateService from '@/services/templateService';
 import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
+import DebugComparisonModal from '@/components/labels/DebugComparisonModal';
 import { useAuth } from '@hooks/useAuth';
 import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
 import type { IntegracaoAPI } from '@/types/api.types';
+import { renderLabelToNativeCanvas } from '@/utils/canvasRenderer';
 import {
   generateBatchThermalCommands,
   downloadThermalFile,
@@ -89,6 +91,9 @@ const Print: React.FC = () => {
     estatisticas?: egestorService.EstatisticasSincronizacao;
   } | null>(null);
   const [lastPrintSuccess, setLastPrintSuccess] = useState(false);
+
+  // Estado para modal de debug de comparação
+  const [showDebugComparison, setShowDebugComparison] = useState(false);
 
   // Configuração de impressão
   const [printConfig, setPrintConfig] = useState<PrintConfig>({
@@ -853,161 +858,19 @@ const Print: React.FC = () => {
   const labelsPerPage = printConfig.columns * printConfig.rows;
   const totalPages = Math.ceil(totalLabels / labelsPerPage);
 
-  // Função auxiliar para renderizar uma etiqueta como HTML e capturar como imagem
+  // Função auxiliar para renderizar uma etiqueta usando Canvas API nativo
+  // Isso garante posicionamento pixel-perfect sem depender de html2canvas
   const renderLabelToCanvas = async (template: LabelTemplate, elements: LabelElement[]): Promise<string> => {
-    // Converter unidades do template para pixels para o html2canvas
-    const getPixelsFromUnit = (value: number, unit: string) => {
-      const conversionRates = {
-        mm: 3.7795275591, // 96 DPI
-        cm: 37.795275591,
-        in: 96,
-        px: 1,
-      };
-      return value * (conversionRates[unit as keyof typeof conversionRates] || 1);
-    };
-
-    const widthPx = getPixelsFromUnit(template.config.width, template.config.unit);
-    const heightPx = getPixelsFromUnit(template.config.height, template.config.unit);
-
-    // Criar um container temporário
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.left = '0';
-    container.style.top = '0';
-    container.style.width = `${Math.ceil(widthPx)}px`;
-    container.style.height = `${Math.ceil(heightPx)}px`;
-    container.style.zIndex = '99999'; // Force visibility for accurate render
-    container.style.backgroundColor = 'white';
-    container.style.overflow = 'hidden';
-
-    // Inject CSS Reset specific for printing to avoid global style pollution
-    const styleReset = document.createElement('style');
-    styleReset.innerHTML = `
-      #label-capture-target * {
-        margin: 0;
-        padding: 0;
-        line-height: 1; 
-        -webkit-font-smoothing: antialiased;
-        box-sizing: border-box;
-      }
-    `;
-    container.appendChild(styleReset);
-
-    document.body.appendChild(container);
-
-    // Garantir layout LTR e alinhamento à esquerda
-    container.style.display = 'block';
-    container.style.textAlign = 'left';
-    container.style.direction = 'ltr';
-
-    // Garantir que as fontes estão carregadas
-    await document.fonts.ready;
-
-    // Criar o componente React do LabelCanvas
-    const root = ReactDOM.createRoot(container);
-
     try {
-      // 3. Renderizar e Capturar
-      // Desativar todas as guias visuais para impressão
-      const cleanConfig = {
-        ...template.config,
-        showGrid: false,
-        showCenterLine: false,
-        showMargins: false,
-        showBorders: false,
-      };
-
-      // Renderizar o LabelCanvas
-      root.render(
-        <LabelCanvas
-          config={cleanConfig}
-          elements={elements}
-          selectedElementId={null}
-          onSelectElement={() => { }}
-          onUpdateElement={() => { }}
-          onDeleteElement={() => { }}
-          zoom={1}
-          isPrinting={true}
-        />
+      // Usar o renderizador nativo que desenha cada elemento manualmente
+      return await renderLabelToNativeCanvas(
+        template.config,
+        elements,
+        previewProduct || undefined,
+        undefined // printConfig não é necessário para renderização nativa
       );
-
-      // Esperar para garantir que o React renderizou e QR Codes/Barcodes foram gerados
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      const captureTarget = container.querySelector('#label-capture-target') as HTMLElement;
-      if (!captureTarget) {
-        throw new Error('Canvas de impressão não encontrado');
-      }
-
-      // Capturar como imagem
-      const canvas = await html2canvas(captureTarget, {
-        backgroundColor: template.config.backgroundColor,
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        // Sincronizar viewport com o elemento a ser capturado
-        // Sincronizar viewport com o elemento a ser capturado
-        width: Math.ceil(widthPx),
-        height: Math.ceil(heightPx),
-        windowWidth: Math.ceil(widthPx),
-        windowHeight: Math.ceil(heightPx),
-        scrollX: 0,
-        scrollY: 0,
-        x: 0,
-        y: 0,
-        onclone: (clonedDoc: Document) => {
-          const el = clonedDoc.querySelector('#label-capture-target') as HTMLElement;
-          if (el) {
-            // ESTRATÉGIA DO QUARTO LIMPO: 
-            // 1. Limpar todo o LIXO do body do clone (evita herança de centralização, flex, scroll)
-            clonedDoc.body.innerHTML = '';
-            clonedDoc.body.style.margin = '0';
-            clonedDoc.body.style.padding = '0';
-            clonedDoc.body.style.display = 'block';
-            clonedDoc.body.style.overflow = 'hidden';
-            clonedDoc.body.style.backgroundColor = 'transparent';
-
-            // 2. Colocar apenas a etiqueta no topo zero
-            const cleanWrapper = clonedDoc.createElement('div');
-            cleanWrapper.style.position = 'fixed';
-            cleanWrapper.style.top = '0';
-            cleanWrapper.style.left = '0';
-            cleanWrapper.style.width = `${Math.ceil(widthPx)}px`;
-            cleanWrapper.style.height = `${Math.ceil(heightPx)}px`;
-            cleanWrapper.style.margin = '0';
-            cleanWrapper.style.padding = '0';
-
-            // 3. Limpar estilos de visualização da etiqueta
-            el.style.position = 'relative';
-            el.style.top = '0';
-            el.style.left = '0';
-            el.style.margin = '0';
-            el.style.boxShadow = 'none';
-            el.style.border = 'none';
-            el.style.transform = 'none';
-
-            cleanWrapper.appendChild(el);
-            clonedDoc.body.appendChild(cleanWrapper);
-          }
-        }
-      } as any);
-
-      const dataUrl = canvas.toDataURL('image/png', 1.0);
-
-      // Limpar
-      root.unmount();
-      if (document.body.contains(container)) {
-        document.body.removeChild(container);
-      }
-
-      return dataUrl;
     } catch (error) {
-      console.error('Erro na captura do canvas:', error);
-      if (root) root.unmount();
-      if (document.body.contains(container)) {
-        document.body.removeChild(container);
-      }
+      console.error('Erro ao renderizar etiqueta:', error);
       throw error;
     }
   };
@@ -1963,6 +1826,16 @@ const Print: React.FC = () => {
               >
                 <i className="fas fa-eye mr-2"></i>
                 Preview e Editar Etiqueta
+              </button>
+
+              {/* Botão Debug: Comparar Edição vs Impressão */}
+              <button
+                onClick={() => setShowDebugComparison(true)}
+                disabled={selectedProducts.size === 0 || !selectedTemplate}
+                className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg hover:from-blue-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+              >
+                <i className="fas fa-search-plus mr-2"></i>
+                🔍 Comparar Edição vs Impressão
               </button>
 
               {/* Botão Config Avançadas */}
@@ -3270,6 +3143,16 @@ const Print: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Modal de Debug: Comparação Edição vs Impressão */}
+        {showDebugComparison && selectedTemplateData && selectedProducts.size > 0 && (
+          <DebugComparisonModal
+            template={selectedTemplateData}
+            product={products.find(p => selectedProducts.has(p.id))!}
+            isOpen={showDebugComparison}
+            onClose={() => setShowDebugComparison(false)}
+          />
         )}
       </div>
     </div>
