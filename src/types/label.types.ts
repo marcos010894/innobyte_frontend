@@ -61,6 +61,7 @@ export interface BarcodeElementProps extends BaseElementProps {
   fontSize?: number;
   lineColor?: string;
   background?: string;
+  textAlign?: TextAlign; // Alinhamento horizontal do barcode
 }
 
 // Propriedades de Imagem

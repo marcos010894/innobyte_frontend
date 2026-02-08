@@ -104,6 +104,46 @@ function getBarcodeTSPLCode(format: BarcodeFormat): string {
   return mapping[format] || '128';
 }
 
+/**
+ * Estima a largura de um código de barras em dots
+ * Baseado no formato e conteúdo
+ * Usado para calcular alinhamento centralizado/direita
+ */
+function estimateBarcodeWidth(format: BarcodeFormat, value: string): number {
+  const narrowBarWidth = 2; // dots (padrão ^BY)
+  
+  switch (format) {
+    case 'CODE128':
+      // CODE128: ~11 módulos por caractere + 35 para start/stop/checksum
+      const modules = (value.length * 11) + 35;
+      return modules * narrowBarWidth;
+      
+    case 'EAN13':
+      // EAN13: largura fixa de 95 módulos
+      return 95 * narrowBarWidth;
+      
+    case 'EAN8':
+      // EAN8: largura fixa de 67 módulos
+      return 67 * narrowBarWidth;
+      
+    case 'CODE39':
+      // CODE39: 13 módulos por caractere (9 barras + 4 espaços) + start/stop
+      return ((value.length * 13) + 25) * narrowBarWidth;
+      
+    case 'UPC':
+      // UPC-A: largura fixa de 95 módulos
+      return 95 * narrowBarWidth;
+      
+    case 'ITF14':
+      // ITF14: 14 dígitos, ~18 módulos por par de dígitos
+      return (7 * 18 + 20) * narrowBarWidth;
+      
+    default:
+      // Estimativa genérica
+      return value.length * 12 * narrowBarWidth;
+  }
+}
+
 // ===================== ZPL Generator =====================
 
 /**
@@ -165,7 +205,25 @@ function generateZPL(
         const barcodeHeight = Math.max(Math.round(height * heightFactor), mmToDots(5, dpi));
         const barcodeType = getBarcodeZPLCode(barcodeEl.format);
 
-        lines.push(`^FO${x},${y}`);
+        // Calcular posição X baseado no alinhamento
+        let adjustedX = x;
+        
+        if (barcodeEl.textAlign === 'center' || barcodeEl.textAlign === 'right') {
+          // Estimar largura do barcode
+          const estimatedBarcodeWidth = estimateBarcodeWidth(barcodeEl.format, barcodeEl.value);
+          
+          if (barcodeEl.textAlign === 'center') {
+            // Centralizar: mover X para a direita pela metade da diferença
+            const offset = Math.round((width - estimatedBarcodeWidth) / 2);
+            adjustedX = x + Math.max(0, offset);
+          } else if (barcodeEl.textAlign === 'right') {
+            // Alinhar à direita
+            const offset = width - estimatedBarcodeWidth;
+            adjustedX = x + Math.max(0, offset);
+          }
+        }
+
+        lines.push(`^FO${adjustedX},${y}`);
         lines.push(`^BY2,2,${barcodeHeight}`); // Bar code defaults
 
         // Tipo de código de barras e valor

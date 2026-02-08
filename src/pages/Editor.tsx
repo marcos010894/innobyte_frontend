@@ -734,14 +734,15 @@ const Editor: React.FC = () => {
             </button>
 
             {/* Exportar PNG */}
-            <button
+            {/* Exportar PNG */}
+            {/* <button
               onClick={handleExportPNG}
               className="px-2 sm:px-4 py-2 bg-primary text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-600"
               title="Exportar como PNG"
             >
               <i className="fas fa-image"></i>
               <span className="ml-1 hidden sm:inline">Exportar PNG</span>
-            </button>
+            </button> */}
           </div>
         </div>
 

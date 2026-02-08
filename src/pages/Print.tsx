@@ -1072,6 +1072,34 @@ const Print: React.FC = () => {
 
       console.log('⚙️ Configuração de impressão:', { columns, rows, labelWidth, labelHeight, skipLabels, pageWidth, pageHeight, printMode });
       console.log('📏 Dimensões do template:', { width: template.config.width, height: template.config.height, unit: template.config.unit });
+      // Calcular quantas etiquetas cabem por página no modo AUTO
+      let labelsPerRow = columns; // Padrão para modo GRID
+      let labelsPerColumn = rows;
+      let labelsPerPage = columns * rows;
+
+      if (isAutoMode) {
+        // No modo AUTO, calcular automaticamente quantas etiquetas cabem na página
+        labelsPerRow = Math.floor(pageWidth / labelWidth);
+        labelsPerColumn = Math.floor(pageHeight / labelHeight);
+        labelsPerPage = labelsPerRow * labelsPerColumn;
+
+        // Garantir que sempre há pelo menos 1 etiqueta por página
+        if (labelsPerPage < 1) {
+          console.warn('⚠️ Etiqueta maior que a página! Forçando 1 etiqueta por página.');
+          labelsPerRow = 1;
+          labelsPerColumn = 1;
+          labelsPerPage = 1;
+        }
+
+        console.log(`📐 Modo AUTO - Grid automático calculado:`);
+        console.log(`   Página: ${pageWidth}mm × ${pageHeight}mm`);
+        console.log(`   Etiqueta: ${labelWidth}mm × ${labelHeight}mm`);
+        console.log(`   Cálculo: floor(${pageWidth}/${labelWidth}) × floor(${pageHeight}/${labelHeight})`);
+        console.log(`   Grid: ${labelsPerRow} colunas × ${labelsPerColumn} linhas = ${labelsPerPage} etiquetas/página`);
+        console.log(`   Total de etiquetas a imprimir: ${totalLabels}`);
+        console.log(`   Páginas necessárias: ${Math.ceil(totalLabels / labelsPerPage)}`);
+      }
+
       const selectedProductsList = Array.from(selectedProducts).map(id =>
         products.find(p => p.id === id)
       ).filter(Boolean) as Product[];
@@ -1117,20 +1145,40 @@ const Print: React.FC = () => {
         for (let copy = 0; copy < quantity; copy++) {
 
           if (isAutoMode) {
-            // === MODO AUTO: Uma etiqueta por página (tamanho exato da etiqueta) ===
-            if (totalLabelsPrinted > 0) {
+            // === MODO AUTO: Múltiplas etiquetas por página (grid automático) ===
+            // Calcular posição no grid automático
+            const labelIndexInPage = totalLabelsPrinted % labelsPerPage;
+            const col = labelIndexInPage % labelsPerRow;
+            const row = Math.floor(labelIndexInPage / labelsPerRow);
+
+            console.log(`🔍 Debug etiqueta ${totalLabelsPrinted + 1}:`);
+            console.log(`   totalLabelsPrinted: ${totalLabelsPrinted}`);
+            console.log(`   labelsPerPage: ${labelsPerPage}`);
+            console.log(`   labelIndexInPage: ${labelIndexInPage}`);
+            console.log(`   Deve adicionar página? ${totalLabelsPrinted > 0 && labelIndexInPage === 0}`);
+
+            // Adicionar nova página se necessário (exceto na primeira etiqueta)
+            if (totalLabelsPrinted > 0 && labelIndexInPage === 0) {
+              console.log(`✅ Adicionando nova página! (Página ${currentPage + 1})`);
               pdf.addPage();
               currentPage++;
             }
 
-            // Etiqueta na posição (0, 0) ocupando toda a página
+            // Calcular posição X e Y (sem margens, etiquetas coladas)
+            const x = col * labelWidth;
+            const y = row * labelHeight;
+
+            console.log(`📍 Etiqueta ${totalLabelsPrinted + 1} - Página ${currentPage}, Posição: (${x.toFixed(1)}mm, ${y.toFixed(1)}mm), Grid: [col ${col}, row ${row}]`);
+
+            // Desenhar borda se configurado
             if (printConfig.showBorders) {
               pdf.setDrawColor(200, 200, 200);
-              pdf.rect(0, 0, labelWidth, labelHeight);
+              pdf.rect(x, y, labelWidth, labelHeight);
             }
 
-            pdf.addImage(labelImage, 'PNG', 0, 0, labelWidth, labelHeight);
-            console.log(`📍 Etiqueta ${totalLabelsPrinted + 1} - Página ${currentPage} (${labelWidth}x${labelHeight}mm)`);
+            // Adicionar imagem da etiqueta
+            pdf.addImage(labelImage, 'PNG', x, y, labelWidth, labelHeight);
+
 
           } else {
             // === MODO GRID: Várias etiquetas por página A4 ===
@@ -1827,7 +1875,7 @@ const Print: React.FC = () => {
               </button>
 
               {/* Botão Debug: Comparar Edição vs Impressão */}
-              <button
+              {/* <button
                 onClick={() => setShowDebugComparison(true)}
                 disabled={selectedProducts.size === 0 || !selectedTemplate}
                 className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-lg hover:from-blue-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
@@ -2472,7 +2520,7 @@ const Print: React.FC = () => {
                 <div>
                   <h3 className="font-semibold text-gray-900 mb-4">🖨️ Modo de Impressão</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <button
+                    {/*<button
                       onClick={() => setPrintConfig({ ...printConfig, printMode: 'grid' })}
                       className={`p-4 border-2 rounded-lg text-left transition-all ${printConfig.printMode === 'grid'
                         ? 'border-blue-500 bg-blue-50'
@@ -2486,7 +2534,7 @@ const Print: React.FC = () => {
                           <div className="text-xs text-gray-500">Múltiplas etiquetas por página</div>
                         </div>
                       </div>
-                    </button>
+                    </button>*/}
                     <button
                       onClick={() => setPrintConfig({ ...printConfig, printMode: 'auto' })}
                       className={`p-4 border-2 rounded-lg text-left transition-all ${printConfig.printMode === 'auto'
@@ -2511,7 +2559,7 @@ const Print: React.FC = () => {
                   )}
                   {printConfig.printMode === 'auto' && (
                     <p className="text-sm text-green-600 mt-2 bg-green-50 p-2 rounded">
-                      🎯 Cada página do PDF terá o tamanho exato da etiqueta (ex: 33×21mm). Ideal para impressoras térmicas.
+                      Vai seguir o tamanho personalizado na configuracao da etiqueta
                     </p>
                   )}
                 </div>

@@ -55,10 +55,10 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
   // Calcular total de etiquetas por folha
   const calculateTotalPerSheet = () => {
     if (isThermal) return null; // Térmica não tem "por folha"
-    
+
     const cols = currentConfig.columns;
     const rows = currentConfig.rows || 1;
-    
+
     return cols * rows;
   };
 
@@ -75,13 +75,31 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
     const marginRight = currentConfig.marginRight || 0;
     const spacingH = currentConfig.spacingHorizontal || 0;
     const spacingV = currentConfig.spacingVertical || 0;
-    
+
+    // Espaço útil disponível (descontando margens)
     const usableWidth = page.width - marginLeft - marginRight;
     const usableHeight = page.height - marginTop - marginBottom;
-    
+
+    // Fórmula correta: (espaço_útil + espaçamento) / (tamanho_etiqueta + espaçamento)
+    // Isso funciona porque:
+    // - Se cabe 1 etiqueta: largura_etiqueta <= espaço_útil
+    // - Se cabem 2: 2*largura + 1*espaçamento <= espaço_útil
+    // - Se cabem N: N*largura + (N-1)*espaçamento <= espaço_útil
+    // Resolvendo para N: N <= (espaço_útil + espaçamento) / (largura + espaçamento)
+
     const cols = Math.max(1, Math.floor((usableWidth + spacingH) / (labelConfig.width + spacingH)));
     const rows = isThermal ? 1 : Math.max(1, Math.floor((usableHeight + spacingV) / (labelConfig.height + spacingV)));
-    
+
+    console.log('🧮 Cálculo automático de grid:');
+    console.log(`   Página: ${page.width} × ${page.height} mm`);
+    console.log(`   Margens: T:${marginTop} B:${marginBottom} L:${marginLeft} R:${marginRight}`);
+    console.log(`   Espaço útil: ${usableWidth.toFixed(1)} × ${usableHeight.toFixed(1)} mm`);
+    console.log(`   Etiqueta: ${labelConfig.width} × ${labelConfig.height} mm`);
+    console.log(`   Espaçamento: H:${spacingH} V:${spacingV}`);
+    console.log(`   Colunas: floor((${usableWidth.toFixed(1)} + ${spacingH}) / (${labelConfig.width} + ${spacingH})) = ${cols}`);
+    console.log(`   Linhas: floor((${usableHeight.toFixed(1)} + ${spacingV}) / (${labelConfig.height} + ${spacingV})) = ${rows}`);
+    console.log(`   ✅ Resultado: ${cols} colunas × ${rows} linhas = ${cols * rows} etiquetas/página`);
+
     handleUpdate({ columns: cols, rows: rows });
   };
 
@@ -109,69 +127,65 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           {/* A4 */}
           <button
             onClick={() => handleUpdate({ pageSizeType: 'a4' })}
-            className={`p-4 border-2 rounded-lg text-left transition-all ${
-              currentConfig.pageSizeType === 'a4'
+            className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'a4'
                 ? 'border-blue-500 bg-blue-50'
                 : 'border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="font-medium text-gray-900">A4</div>
             <div className="text-xs text-gray-500">210 × 297 mm</div>
           </button>
-          
+
           {/* Carta */}
           <button
             onClick={() => handleUpdate({ pageSizeType: 'carta' })}
-            className={`p-4 border-2 rounded-lg text-left transition-all ${
-              currentConfig.pageSizeType === 'carta'
+            className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'carta'
                 ? 'border-blue-500 bg-blue-50'
                 : 'border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="font-medium text-gray-900">Carta (Letter)</div>
             <div className="text-xs text-gray-500">215.9 × 279.4 mm</div>
           </button>
-          
+
           {/* Altura da Etiqueta (Térmica) */}
           <button
-            onClick={() => handleUpdate({ 
+            onClick={() => handleUpdate({
               pageSizeType: 'altura-etiqueta',
               rows: 1,
               marginTop: 0,
               marginBottom: 0,
               spacingVertical: 0,
             })}
-            className={`p-4 border-2 rounded-lg text-left transition-all ${
-              currentConfig.pageSizeType === 'altura-etiqueta'
+            className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'altura-etiqueta'
                 ? 'border-green-500 bg-green-50'
                 : 'border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="font-medium text-gray-900">Altura da Etiqueta</div>
             <div className="text-xs text-gray-500">Para impressoras térmicas</div>
           </button>
-          
+
           {/* Personalizado */}
           <button
             onClick={() => handleUpdate({ pageSizeType: 'personalizado' })}
-            className={`p-4 border-2 rounded-lg text-left transition-all ${
-              currentConfig.pageSizeType === 'personalizado'
+            className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'personalizado'
                 ? 'border-purple-500 bg-purple-50'
                 : 'border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             <div className="font-medium text-gray-900">Personalizado</div>
             <div className="text-xs text-gray-500">Definir manualmente</div>
           </button>
         </div>
-        
+
         {/* Mensagem explicativa para térmica */}
         {isThermal && (
           <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
             <div className="flex gap-2">
               <i className="fas fa-info-circle text-green-600 mt-0.5"></i>
               <div className="text-sm text-green-800">
-                <strong>Modo Térmica:</strong> A altura da página será igual à altura da etiqueta 
+                <strong>Modo Térmica:</strong> A altura da página será igual à altura da etiqueta
                 ({labelConfig.height} {labelConfig.unit}). Ideal para impressoras de rolo contínuo.
               </div>
             </div>
@@ -224,7 +238,7 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
             Calcular Automático
           </button>
         </div>
-        
+
         <div className="grid grid-cols-2 gap-4">
           {/* Colunas */}
           <div>
@@ -239,7 +253,7 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
               min="1"
             />
           </div>
-          
+
           {/* Linhas - só mostra se não for térmica */}
           {!isThermal && (
             <div>
@@ -256,14 +270,14 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
             </div>
           )}
         </div>
-        
+
         {/* Total por folha */}
         {totalPerSheet && totalPerSheet > 0 && (
           <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex items-center gap-2">
               <i className="fas fa-calculator text-blue-600"></i>
               <span className="text-sm text-blue-800">
-                <strong>Total por folha:</strong> {totalPerSheet} etiquetas 
+                <strong>Total por folha:</strong> {totalPerSheet} etiquetas
                 ({currentConfig.columns} × {currentConfig.rows || 1})
               </span>
             </div>
@@ -303,7 +317,7 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           </div>
         </div>
       )}
-      
+
       {/* Margem esquerda sempre visível */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -397,7 +411,7 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
                 placeholder="0"
               />
             </div>
-            
+
             {/* Mostrar bordas */}
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -423,9 +437,9 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           </div>
           <div>
             <strong>Página:</strong> {
-              isThermal 
-                ? `Altura da etiqueta (${labelConfig.height} ${labelConfig.unit})` 
-                : currentConfig.pageSizeType === 'a4' 
+              isThermal
+                ? `Altura da etiqueta (${labelConfig.height} ${labelConfig.unit})`
+                : currentConfig.pageSizeType === 'a4'
                   ? 'A4 (210 × 297 mm)'
                   : currentConfig.pageSizeType === 'carta'
                     ? 'Carta (215.9 × 279.4 mm)'
