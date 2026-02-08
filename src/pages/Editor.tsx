@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import html2canvas from 'html2canvas';
-import ReactDOM from 'react-dom/client';
+// import ReactDOM from 'react-dom/client'; // Comentado - usado apenas em handleExportPNG
 import ElementsToolbar from '@/components/labels/ElementsToolbar';
 import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
@@ -501,6 +501,7 @@ const Editor: React.FC = () => {
   };
 
   // Exportar como PNG
+  /* FUNÇÃO COMENTADA - Botão de exportar PNG está desabilitado
   const handleExportPNG = async () => {
     // 1. Converter unidades (96 DPI padrão do navegador)
     const getPixelsFromUnit = (value: number, unit: string) => {
@@ -582,6 +583,7 @@ const Editor: React.FC = () => {
       setIsSaving(false);
     }
   };
+  */
 
   // Novo template
   const handleNewTemplate = () => {
