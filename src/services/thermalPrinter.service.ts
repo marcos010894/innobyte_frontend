@@ -195,12 +195,21 @@ function generateZPL(
         const textEl = element;
         const fontHeight = fontSizeToDots(textEl.fontSize || 12, dpi);
         // Font weight pode ser usado para selecionar fonte bold quando disponível
-        const fontStyle = (textEl.fontWeight === 'bold' || parseInt(textEl.fontWeight || '400') >= 600) ? 'B' : 'N';
+        // Mapear rotação do elemento para orientação ZPL
+        // 0/360 = N (Normal)
+        // 90 = R (Rotated 90)
+        // 180 = I (Inverted 180)
+        // 270 = B (Bottom-up 270)
+        let orientation = 'N';
+        const rot = (textEl.rotation || 0) % 360;
+        if (rot === 90) orientation = 'R';
+        else if (rot === 180) orientation = 'I';
+        else if (rot === 270) orientation = 'B';
 
         lines.push(`^FO${x},${y}`); // Field Origin
 
-        // Usar fonte escalável (^A0) com tamanho - fontStyle indica Normal ou Bold
-        lines.push(`^A0${fontStyle},${fontHeight},${Math.round(fontHeight * 0.7)}`);
+        // Usar fonte escalável (^A0) com tamanho
+        lines.push(`^A0${orientation},${fontHeight},${Math.round(fontHeight * 0.7)}`);
 
         // Alinhamento e Bloco de Texto (Wrap)
         // ^FBwidth,max_lines,line_spacing,justify,hanging_indent
