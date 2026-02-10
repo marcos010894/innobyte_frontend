@@ -160,6 +160,13 @@ function generateZPL(
   // Início do label
   lines.push('^XA'); // Start Format
 
+  // Comentários de Debug
+  lines.push(`^FX Debug Info:`);
+  lines.push(`^FX DPI: ${dpi}`);
+  lines.push(`^FX Label Size: ${labelWidth}mm x ${labelHeight}mm`);
+  lines.push(`^FX Label Size (dots): ${mmToDots(labelWidth, dpi)} x ${mmToDots(labelHeight, dpi)}`);
+  lines.push(`^FX Speed: ${printSpeed}, Darkness: ${darkness}`);
+
   // Configurações do label
   lines.push(`^PW${mmToDots(labelWidth, dpi)}`); // Print Width
   lines.push(`^LL${mmToDots(labelHeight, dpi)}`); // Label Length

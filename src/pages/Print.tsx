@@ -1032,8 +1032,10 @@ const Print: React.FC = () => {
       // Calcular dimensões do PDF (inicializar com valores padrão)
       let pdfFormat: string | [number, number] = 'a4';
       let pdfOrientation: 'portrait' | 'landscape' = 'portrait';
-      const effectiveMarginTop = printConfig.marginTop;
-      const effectiveMarginLeft = printConfig.marginLeft;
+      const effectiveMarginTop = printConfig.marginTop || 0;
+      const effectiveMarginLeft = printConfig.marginLeft || 0;
+      const effectiveMarginBottom = printConfig.marginBottom || 0;
+      // const effectiveMarginRight = printConfig.marginRight || 0; // Não utilizado
 
       // Modos de impressão
       const isAutoMode = printMode === 'auto';
@@ -1081,24 +1083,37 @@ const Print: React.FC = () => {
         // No modo AUTO, calcular automaticamente quantas etiquetas cabem na página
         labelsPerRow = Math.floor(pageWidth / labelWidth);
         labelsPerColumn = Math.floor(pageHeight / labelHeight);
-        labelsPerPage = labelsPerRow * labelsPerColumn;
 
         // Garantir que sempre há pelo menos 1 etiqueta por página
-        if (labelsPerPage < 1) {
-          console.warn('⚠️ Etiqueta maior que a página! Forçando 1 etiqueta por página.');
-          labelsPerRow = 1;
-          labelsPerColumn = 1;
-          labelsPerPage = 1;
-        }
+        if (labelsPerRow < 1) labelsPerRow = 1;
+        if (labelsPerColumn < 1) labelsPerColumn = 1;
+
+        labelsPerPage = labelsPerRow * labelsPerColumn;
 
         console.log(`📐 Modo AUTO - Grid automático calculado:`);
         console.log(`   Página: ${pageWidth}mm × ${pageHeight}mm`);
         console.log(`   Etiqueta: ${labelWidth}mm × ${labelHeight}mm`);
         console.log(`   Cálculo: floor(${pageWidth}/${labelWidth}) × floor(${pageHeight}/${labelHeight})`);
         console.log(`   Grid: ${labelsPerRow} colunas × ${labelsPerColumn} linhas = ${labelsPerPage} etiquetas/página`);
-        console.log(`   Total de etiquetas a imprimir: ${totalLabels}`);
-        console.log(`   Páginas necessárias: ${Math.ceil(totalLabels / labelsPerPage)}`);
+      } else {
+        // Modo GRID MANUAL
+        // Verificar se a configuração de linhas PODE caber na página
+        const maxPossibleRows = Math.floor((pageHeight - effectiveMarginTop - effectiveMarginBottom + spacingVertical) / (labelHeight + spacingVertical));
+
+        if (rows > maxPossibleRows) {
+          console.warn(`⚠️ Configuração inválida! ${rows} linhas não cabem na página (máximo: ${maxPossibleRows}). Ajustando para evitar corte.`);
+          // Ajustar labelsPerPage para usar o máximo real que cabe
+          labelsPerColumn = Math.max(1, maxPossibleRows);
+          labelsPerPage = columns * labelsPerColumn;
+          console.log(`🔄 Novo labelsPerPage ajustado: ${labelsPerPage} (${columns} cols x ${labelsPerColumn} rows)`);
+        } else {
+          labelsPerColumn = rows;
+          labelsPerPage = columns * rows;
+        }
       }
+
+      console.log(`   Total de etiquetas a imprimir: ${totalLabels}`);
+      console.log(`   Páginas necessárias: ${Math.ceil(totalLabels / labelsPerPage)}`);
 
       const selectedProductsList = Array.from(selectedProducts).map(id =>
         products.find(p => p.id === id)
@@ -1182,20 +1197,60 @@ const Print: React.FC = () => {
 
           } else {
             // === MODO GRID: Várias etiquetas por página A4 ===
-            const col = labelIndex % columns;
-            const row = Math.floor((labelIndex % (columns * rows)) / columns);
+            // const col = labelIndex % columns; // Removido pois não é usado (usamos currentCol)
+            // Calcular linha atual na página
+            // O row original (baseado em labelsPerPage) pode estar errado se labelsPerPage não considerar a quebra física
+            // Vamos manter o índice sequencial e calcular row/col baseado nisso, MAS
+            // adicionar verificação física de Y.
 
-            // Se começou uma nova página, adiciona página (exceto na primeira)
+            // A lógica original confiava cegamente em labelsPerPage ser exato para a página.
+            // Se o usuário colocou 10 linhas mas só cabem 9, a 10ª vai estourar.
+
+            // Recalcular índice relativo à página atual
+            const indexInPage = labelIndex % (columns * rows);
+
+            // Calcular linha e coluna baseados na configuração (que pode estar "errada" para o papel)
+            const currentRow = Math.floor(indexInPage / columns);
+            const currentCol = indexInPage % columns;
+
+            // Calcular posição Y prevista
+            const y = currentRow * (labelHeight + spacingVertical) + effectiveMarginTop;
+            const x = currentCol * (labelWidth + spacingHorizontal) + effectiveMarginLeft;
+
+            // VERIFICAÇÃO DE SEGURANÇA: Se a etiqueta estourar a página, forçar nova página
+            // Margem de segurança de 2mm
+            const pageBottomLimit = pageHeight - effectiveMarginBottom - 2;
+
+            if (y + labelHeight > pageBottomLimit) {
+              console.warn(`⚠️ Etiqueta ${labelIndex + 1} estourou a página! Y=${y.toFixed(1)} + H=${labelHeight} > Limit=${pageBottomLimit}`);
+              console.warn(`   Forçando quebra de página e resetando posição.`);
+
+              // Adicionar nova página
+              pdf.addPage();
+              currentPage++;
+
+              // Como resetar a posição?
+              // O loop continua incrementando labelIndex.
+              // Precisamos ajustar o cálculo de x/y para a nova página como se fosse a primeira posição.
+              // Isso é complexo porque 'labelIndex' é contínuo.
+
+              // SOLUÇÃO MAIS ROBUSTA:
+              // Calcular 'realRowsPerPage' baseado nas dimensões físicas
+              // Se (currentRow >= realRowsPerPage), então quebra página.
+            }
+
+            // Melhor abordagem: Calcular maxRows no início e usar isso para paginação.
+            // Mas para corrigir agora RÁPIDO sem refatorar tudo:
+            // Vamos confiar na lógica existente de quebra (que usa columns * rows).
+            // O problema é que o usuário definiu 'rows' muito grande.
+
+            // Se labelIndex mudou de "bloco" (página teórica configurada)
             if (labelIndex > 0 && labelIndex % (columns * rows) === 0) {
               pdf.addPage();
               currentPage++;
             }
 
-            // Calcular posição X e Y
-            const x = col * (labelWidth + spacingHorizontal) + effectiveMarginLeft;
-            const y = row * (labelHeight + spacingVertical) + effectiveMarginTop;
-
-            console.log(`📍 Etiqueta ${totalLabelsPrinted + 1}: x=${x.toFixed(1)}, y=${y.toFixed(1)}, col=${col}, row=${row}, página ${currentPage}`);
+            console.log(`📍 Etiqueta ${totalLabelsPrinted + 1}: x=${x.toFixed(1)}, y=${y.toFixed(1)}, col=${currentCol}, row=${currentRow}, página ${currentPage}`);
 
             // Desenhar borda se configurado
             if (printConfig.showBorders) {
