@@ -69,6 +69,8 @@ const Print: React.FC = () => {
     printSpeed: 4,
     darkness: 15,
     copies: 1,
+    offsetX: 0,
+    offsetY: 0,
   });
   const [isGeneratingThermal, setIsGeneratingThermal] = useState(false);
 
@@ -2500,6 +2502,44 @@ const Print: React.FC = () => {
                       onChange={(e) => setThermalConfig({ ...thermalConfig, darkness: parseInt(e.target.value) })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
                     />
+                  </div>
+                </div>
+
+                {/* Calibração (Offset) */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <i className="fas fa-crosshairs mr-2"></i>
+                    Calibração de Posição (Offset)
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Horizontal X (mm)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={thermalConfig.offsetX || 0}
+                        onChange={(e) => setThermalConfig({ ...thermalConfig, offsetX: parseFloat(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="0"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">positivo = direita</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Vertical Y (mm)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={thermalConfig.offsetY || 0}
+                        onChange={(e) => setThermalConfig({ ...thermalConfig, offsetY: parseFloat(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="0"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">positivo = baixo</p>
+                    </div>
                   </div>
                 </div>
 

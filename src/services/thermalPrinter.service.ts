@@ -28,6 +28,10 @@ export interface ThermalPrintConfig {
   darkness?: number;
   /** Quantidade de cópias por etiqueta */
   copies?: number;
+  /** Deslocamento horizontal (X) em mm para calibração */
+  offsetX?: number;
+  /** Deslocamento vertical (Y) em mm para calibração */
+  offsetY?: number;
 }
 
 /**
@@ -153,7 +157,7 @@ function generateZPL(
   elements: LabelElement[],
   config: ThermalPrintConfig
 ): string {
-  const { dpi, labelWidth, labelHeight, printSpeed = 4, darkness = 15, copies = 1 } = config;
+  const { dpi, labelWidth, labelHeight, printSpeed = 4, darkness = 15, copies = 1, offsetX = 0, offsetY = 0 } = config;
 
   const lines: string[] = [];
 
@@ -164,6 +168,7 @@ function generateZPL(
   lines.push(`^FX Debug Info:`);
   lines.push(`^FX DPI: ${dpi}`);
   lines.push(`^FX Label Size: ${labelWidth}mm x ${labelHeight}mm`);
+  lines.push(`^FX Offset: X=${offsetX}mm, Y=${offsetY}mm`);
   lines.push(`^FX Label Size (dots): ${mmToDots(labelWidth, dpi)} x ${mmToDots(labelHeight, dpi)}`);
   lines.push(`^FX Speed: ${printSpeed}, Darkness: ${darkness}`);
 
@@ -172,7 +177,11 @@ function generateZPL(
   lines.push(`^LL${mmToDots(labelHeight, dpi)}`); // Label Length
   lines.push(`^PR${printSpeed}`); // Print Rate/Speed
   lines.push(`~SD${darkness}`); // Set Darkness
-  lines.push('^LH0,0'); // Label Home (origin)
+  
+  // Definir Label Home (Origem) com o deslocamento configurado
+  const xOffsetDots = mmToDots(offsetX, dpi);
+  const yOffsetDots = mmToDots(offsetY, dpi);
+  lines.push(`^LH${xOffsetDots},${yOffsetDots}`); // Label Home (origin)
 
   // Processar cada elemento
   for (const element of elements) {
