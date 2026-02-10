@@ -110,11 +110,30 @@ async function renderTextElement(
     ctx.textAlign = 'left';
   }
 
-  // Desenhar texto (suporte básico para quebra de linha)
+  // Desenhar texto com quebra de linha automática (word wrap)
   const lineHeight = (element.lineHeight || 1.1) * fontSize;
-  const lines = content.split('\n');
   
-  lines.forEach((line: string, index: number) => {
+  // 1. Dividir por quebras de linha explícitas (\n)
+  const paragraphs = content.split('\n');
+  let allLines: string[] = [];
+  
+  // 2. Para cada parágrafo, aplicar word wrap se necessário
+  if (element.noWrap) {
+    allLines = paragraphs;
+  } else {
+    paragraphs.forEach((paragraph: string) => {
+      // Se a linha for vazia, manter vazia
+      if (paragraph === '') {
+        allLines.push('');
+      } else {
+        const wrapped = wrapText(ctx, paragraph, element.width);
+        allLines.push(...wrapped);
+      }
+    });
+  }
+  
+  // 3. Desenhar todas as linhas
+  allLines.forEach((line: string, index: number) => {
     const y = element.y + (index * lineHeight);
     
     // Aplicar decorações
@@ -130,6 +149,28 @@ async function renderTextElement(
     
     ctx.fillText(line, x, y);
   });
+}
+
+/**
+ * Quebra o texto em linhas para caber na largura máxima
+ */
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = words[0];
+
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i];
+    const width = ctx.measureText(currentLine + " " + word).width;
+    if (width < maxWidth) {
+      currentLine += " " + word;
+    } else {
+      lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  lines.push(currentLine);
+  return lines;
 }
 
 // Renderizar código de barras

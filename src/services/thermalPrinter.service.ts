@@ -193,11 +193,15 @@ function generateZPL(
         // Usar fonte escalável (^A0) com tamanho - fontStyle indica Normal ou Bold
         lines.push(`^A0${fontStyle},${fontHeight},${Math.round(fontHeight * 0.7)}`);
 
-        // Alinhamento
+        // Alinhamento e Bloco de Texto (Wrap)
+        // ^FBwidth,max_lines,line_spacing,justify,hanging_indent
+        // Usamos sempre ^FB para garantir quebra de linha automática (word wrap) dentro da largura do elemento
         if (textEl.textAlign === 'center') {
-          lines.push(`^FB${width},1,0,C,0`); // Field Block centered
+          lines.push(`^FB${width},10,0,C,0`); // Field Block centered (max 10 linhas)
         } else if (textEl.textAlign === 'right') {
-          lines.push(`^FB${width},1,0,R,0`); // Field Block right
+          lines.push(`^FB${width},10,0,R,0`); // Field Block right
+        } else {
+          lines.push(`^FB${width},10,0,L,0`); // Field Block left (padrão)
         }
 
         // Texto
