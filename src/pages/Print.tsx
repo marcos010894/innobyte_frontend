@@ -1221,23 +1221,25 @@ const Print: React.FC = () => {
             // Margem de segurança de 2mm
             const pageBottomLimit = pageHeight - effectiveMarginBottom - 2;
 
-            if (y + labelHeight > pageBottomLimit) {
+            // Só quebra página se estourar E NÃO for a primeira linha da página
+            // Se for a primeira linha e estourar, não adianta criar nova página (vai estourar lá também)
+            if (y + labelHeight > pageBottomLimit && currentRow > 0) {
               console.warn(`⚠️ Etiqueta ${labelIndex + 1} estourou a página! Y=${y.toFixed(1)} + H=${labelHeight} > Limit=${pageBottomLimit}`);
               console.warn(`   Forçando quebra de página e resetando posição.`);
 
               // Adicionar nova página
               pdf.addPage();
               currentPage++;
+            }   // Como resetar a posição?
+            // O loop continua incrementando labelIndex.
+            // Precisamos ajustar o cálculo de x/y para a nova página como se fosse a primeira posição.
+            // Isso é complexo porque 'labelIndex' é contínuo.
 
-              // Como resetar a posição?
-              // O loop continua incrementando labelIndex.
-              // Precisamos ajustar o cálculo de x/y para a nova página como se fosse a primeira posição.
-              // Isso é complexo porque 'labelIndex' é contínuo.
-
-              // SOLUÇÃO MAIS ROBUSTA:
-              // Calcular 'realRowsPerPage' baseado nas dimensões físicas
-              // Se (currentRow >= realRowsPerPage), então quebra página.
-            }
+            // SOLUÇÃO MAIS ROBUSTA:
+            // Calcular 'realRowsPerPage' baseado nas dimensões físicas
+            // Se (currentRow >= realRowsPerPage), então quebra página.
+            // Calcular 'realRowsPerPage' baseado nas dimensões físicas
+            // Se (currentRow >= realRowsPerPage), então quebra página.
 
             // Melhor abordagem: Calcular maxRows no início e usar isso para paginação.
             // Mas para corrigir agora RÁPIDO sem refatorar tudo:
