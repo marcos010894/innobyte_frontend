@@ -621,7 +621,11 @@ export function generateBatchThermalCommands(
 
   for (const { product, quantity } of products) {
     // Configurar quantidade no config
-    const configWithQuantity = { ...config, copies: quantity };
+    // Forçar quantity para number para garantir que copies seja number
+    const configWithQuantity: ThermalPrintConfig = {
+      ...config,
+      copies: Number(quantity) || 1
+    };
 
     const commands = generateThermalCommands(
       template,
