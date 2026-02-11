@@ -113,8 +113,7 @@ function getBarcodeTSPLCode(format: BarcodeFormat): string {
  * Baseado no formato e conteúdo
  * Usado para calcular alinhamento centralizado/direita
  */
-function estimateBarcodeWidth(format: BarcodeFormat, value: string): number {
-  const narrowBarWidth = 2; // dots (padrão ^BY)
+function estimateBarcodeWidth(format: BarcodeFormat, value: string, narrowBarWidth: number = 2): number {
   
   switch (format) {
     case 'CODE128':
@@ -209,7 +208,9 @@ function generateZPL(
         lines.push(`^FO${x},${y}`); // Field Origin
 
         // Usar fonte escalável (^A0) com tamanho
-        lines.push(`^A0${orientation},${fontHeight},${Math.round(fontHeight * 0.7)}`);
+        // REMOVIDO: Limitação de largura (70%) que distorcia a fonte.
+        // Agora deixamos a impressora escolher a largura natural proporcional à altura.
+        lines.push(`^A0${orientation},${fontHeight}`);
 
         // Alinhamento e Bloco de Texto (Wrap)
         // ^FBwidth,max_lines,line_spacing,justify,hanging_indent
@@ -240,23 +241,31 @@ function generateZPL(
         // Calcular posição X baseado no alinhamento
         let adjustedX = x;
         
+        // Determinar largura do módulo (1 ou 2 dots) para caber na etiqueta
+        let moduleWidth = 2;
+        let estimatedBarcodeWidth = estimateBarcodeWidth(barcodeEl.format, barcodeEl.value, moduleWidth);
+        
+        // Se a largura estimada for maior que a largura do elemento (com margem de erro), reduzir para módulo 1
+        if (estimatedBarcodeWidth > width && moduleWidth > 1) {
+          moduleWidth = 1;
+          estimatedBarcodeWidth = estimateBarcodeWidth(barcodeEl.format, barcodeEl.value, moduleWidth);
+        }
+
         if (barcodeEl.textAlign === 'center' || barcodeEl.textAlign === 'right') {
-          // Estimar largura do barcode
-          const estimatedBarcodeWidth = estimateBarcodeWidth(barcodeEl.format, barcodeEl.value);
-          
           if (barcodeEl.textAlign === 'center') {
             // Centralizar: mover X para a direita pela metade da diferença
+            // Permitir offset negativo para casos onde o barcode é maior que a largura do elemento
             const offset = Math.round((width - estimatedBarcodeWidth) / 2);
-            adjustedX = x + Math.max(0, offset);
+            adjustedX = Math.max(0, x + offset);
           } else if (barcodeEl.textAlign === 'right') {
             // Alinhar à direita
             const offset = width - estimatedBarcodeWidth;
-            adjustedX = x + Math.max(0, offset);
+            adjustedX = Math.max(0, x + offset);
           }
         }
 
         lines.push(`^FO${adjustedX},${y}`);
-        lines.push(`^BY2,2,${barcodeHeight}`); // Bar code defaults
+        lines.push(`^BY${moduleWidth},2,${barcodeHeight}`); // Bar code defaults (module width, ratio, height)
 
         // Tipo de código de barras e valor
         lines.push(`^${barcodeType}N,${barcodeHeight},Y,N,N`);
