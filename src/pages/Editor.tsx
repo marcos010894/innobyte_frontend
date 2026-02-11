@@ -1071,7 +1071,14 @@ const Editor: React.FC = () => {
       {showStartupModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-fade-in-up">
-            <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white text-center">
+            <div className="bg-gradient-to-r from-primary to-blue-600 p-6 text-white text-center relative">
+              <button
+                onClick={() => navigate('/')}
+                className="absolute top-4 right-4 text-white/80 hover:text-white hover:bg-white/20 p-2 rounded-full transition-colors"
+                title="Voltar para Dashboard"
+              >
+                <i className="fas fa-times text-xl"></i>
+              </button>
               <i className="fas fa-magic text-4xl mb-3 opacity-90"></i>
               <h2 className="text-2xl font-bold">Nova Etiqueta</h2>
               <p className="text-blue-100 mt-1">Configure as dimensões iniciais</p>
