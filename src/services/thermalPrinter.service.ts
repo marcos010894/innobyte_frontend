@@ -251,8 +251,11 @@ function generateZPL(
           estimatedBarcodeWidth = estimateBarcodeWidth(barcodeEl.format, barcodeEl.value, moduleWidth);
         }
 
-        if (barcodeEl.textAlign === 'center' || barcodeEl.textAlign === 'right') {
-          if (barcodeEl.textAlign === 'center') {
+        // Default para CENTER se não estiver definido (para bater com o visual do editor/PDF)
+        const align = barcodeEl.textAlign || 'center';
+
+        if (align === 'center' || align === 'right') {
+          if (align === 'center') {
             // Centralizar: mover X para a direita pela metade da diferença
             // Permitir offset negativo para casos onde o barcode é maior que a largura do elemento
             const offset = Math.round((width - estimatedBarcodeWidth) / 2);

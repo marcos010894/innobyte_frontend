@@ -102,11 +102,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdate }) 
             <button
               key={align}
               onClick={() => onUpdate({ textAlign: align as TextElementProps['textAlign'] })}
-              className={`flex-1 py-2 px-3 rounded-md text-sm ${
-                el.textAlign === align
+              className={`flex-1 py-2 px-3 rounded-md text-sm ${el.textAlign === align
                   ? 'bg-primary text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               <i className={`fas fa-align-${align}`}></i>
             </button>
@@ -173,21 +172,19 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdate }) 
         <div className="flex gap-2">
           <button
             onClick={() => onUpdate({ noWrap: false })}
-            className={`flex-1 py-2 px-3 rounded-md text-sm ${
-              !el.noWrap
+            className={`flex-1 py-2 px-3 rounded-md text-sm ${!el.noWrap
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Sim
           </button>
           <button
             onClick={() => onUpdate({ noWrap: true })}
-            className={`flex-1 py-2 px-3 rounded-md text-sm ${
-              el.noWrap
+            className={`flex-1 py-2 px-3 rounded-md text-sm ${el.noWrap
                 ? 'bg-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             Não
           </button>
