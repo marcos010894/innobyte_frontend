@@ -213,13 +213,16 @@ function generateZPL(
 
         // Alinhamento e Bloco de Texto (Wrap)
         // ^FBwidth,max_lines,line_spacing,justify,hanging_indent
-        // Usamos sempre ^FB para garantir quebra de linha automática (word wrap) dentro da largura do elemento
+        // Calcular espaçamento entre linhas (dots)
+        // ZPL ^FB aceita valores positivos (adiciona espaço) ou negativos (subtrai).
+        const lineSpacingDots = Math.round(fontHeight * ((textEl.lineHeight || 1.1) - 1));
+
         if (textEl.textAlign === 'center') {
-          lines.push(`^FB${width},10,0,C,0`); // Field Block centered (max 10 linhas)
+          lines.push(`^FB${width},10,${lineSpacingDots},C,0`); // Field Block centered (max 10 linhas)
         } else if (textEl.textAlign === 'right') {
-          lines.push(`^FB${width},10,0,R,0`); // Field Block right
+          lines.push(`^FB${width},10,${lineSpacingDots},R,0`); // Field Block right
         } else {
-          lines.push(`^FB${width},10,0,L,0`); // Field Block left (padrão)
+          lines.push(`^FB${width},10,${lineSpacingDots},L,0`); // Field Block left (padrão)
         }
 
         // Texto
