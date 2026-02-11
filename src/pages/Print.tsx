@@ -72,6 +72,18 @@ const Print: React.FC = () => {
     offsetX: 0,
     offsetY: 0,
   });
+
+  // Atualizar dimensões da impressora térmica quando excluir um template
+  useEffect(() => {
+    if (selectedTemplateData) {
+      setThermalConfig(prev => ({
+        ...prev,
+        labelWidth: selectedTemplateData.config.width,
+        labelHeight: selectedTemplateData.config.height,
+      }));
+    }
+  }, [selectedTemplateData]);
+
   const [isGeneratingThermal, setIsGeneratingThermal] = useState(false);
 
   // Estados para importação de etiquetas
