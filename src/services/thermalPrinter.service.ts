@@ -162,6 +162,7 @@ function generateZPL(
 
   // Início do label
   lines.push('^XA'); // Start Format
+  lines.push('^CI28'); // Enable UTF-8 encoding (Zebra standard for Unicode)
 
   // Comentários de Debug
   lines.push(`^FX Debug Info:`);
