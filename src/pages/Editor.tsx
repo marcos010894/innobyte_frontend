@@ -7,6 +7,7 @@ import LabelCanvas from '@/components/labels/LabelCanvas';
 import PropertiesPanel from '@/components/labels/PropertiesPanel';
 import AdvancedConfigModal from '@/components/labels/AdvancedConfigModal';
 import PagePrintConfigPanel from '@/components/labels/PagePrintConfigPanel';
+import BarcodeInitialConfigModal from '@/components/labels/BarcodeInitialConfigModal';
 import templateService from '@/services/templateService';
 import { useAuth } from '@/hooks/useAuth';
 import type { LabelTemplate, LabelConfig, LabelElement, ElementType, PagePrintConfig } from '@/types/label.types';
@@ -56,6 +57,8 @@ const Editor: React.FC = () => {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(false);
   const [showPagePrintConfig, setShowPagePrintConfig] = useState(false);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [pendingBarcodeProps, setPendingBarcodeProps] = useState<Record<string, unknown> | undefined>(undefined);
   const [showVariablesHelp, setShowVariablesHelp] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -223,8 +226,8 @@ const Editor: React.FC = () => {
     return value * (conversionRates[unit] || 1);
   };
 
-  // Adicionar novo elemento
-  const handleAddElement = (type: ElementType, additionalProps?: Record<string, unknown>) => {
+  // Adicionar novo elemento (Lógica principal)
+  const finalizeAddElement = (type: ElementType, additionalProps?: Record<string, unknown>) => {
     // Calcular dimensões do canvas em pixels
     const canvasWidthPx = getPixelsFromUnit(template.config.width, template.config.unit);
     const canvasHeightPx = getPixelsFromUnit(template.config.height, template.config.unit);
@@ -316,10 +319,14 @@ const Editor: React.FC = () => {
         newElement = {
           ...baseElement,
           type: 'barcode',
-          value: '1234567890',
-          format: additionalProps?.format || 'CODE128',
-          width: baseElement.width, // Usar o calculado
-          height: baseElement.height, // Usar o calculado
+          value: (additionalProps?.content as string) || '1234567890',
+          fontSize: 30, // Default menor
+          fontFamily: 'Arial', // Fonte padrão
+          fontWeight: '400',
+          width: 80, // Default ajustado
+          height: 30,
+          textAlign: 'center', // Centralizado por padrão
+          format: (additionalProps?.format as any) || 'CODE128', // Manter format se vier
           displayValue: true,
         } as LabelElement;
         break;
@@ -346,13 +353,24 @@ const Editor: React.FC = () => {
         return;
     }
 
-    setTemplate({
-      ...template,
-      elements: [...template.elements, newElement],
+    setTemplate((prev) => ({
+      ...prev,
+      elements: [...prev.elements, newElement],
       updatedAt: new Date(),
-    });
+    }));
 
+    // Selecionar o novo elemento automaticamente
     setSelectedElementId(newElement.id);
+  };
+
+  // Wrapper para interceptar adição de barcode
+  const handleAddElement = (type: ElementType, additionalProps?: Record<string, unknown>) => {
+    if (type === 'barcode') {
+      setPendingBarcodeProps(additionalProps);
+      setShowBarcodeModal(true);
+    } else {
+      finalizeAddElement(type, additionalProps);
+    }
   };
 
   // Atualizar elemento
@@ -1185,6 +1203,16 @@ const Editor: React.FC = () => {
           <span>Ajuste fino</span>
         </div>
       </div>
+
+      {/* Modal de Configuração Inicial de Barcode */}
+      <BarcodeInitialConfigModal
+        isOpen={showBarcodeModal}
+        onClose={() => setShowBarcodeModal(false)}
+        onConfirm={(value) => {
+          finalizeAddElement('barcode', { ...pendingBarcodeProps, content: value });
+          setShowBarcodeModal(false);
+        }}
+      />
 
       {/* Modal de Ajuda - Variáveis Disponíveis */}
       {showVariablesHelp && (
