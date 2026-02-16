@@ -128,8 +128,8 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           <button
             onClick={() => handleUpdate({ pageSizeType: 'a4' })}
             className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'a4'
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
               }`}
           >
             <div className="font-medium text-gray-900">A4</div>
@@ -140,8 +140,8 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           <button
             onClick={() => handleUpdate({ pageSizeType: 'carta' })}
             className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'carta'
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-gray-300'
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
               }`}
           >
             <div className="font-medium text-gray-900">Carta (Letter)</div>
@@ -153,13 +153,14 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
             onClick={() => handleUpdate({
               pageSizeType: 'altura-etiqueta',
               rows: 1,
+              columns: 1,
               marginTop: 0,
               marginBottom: 0,
               spacingVertical: 0,
             })}
             className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'altura-etiqueta'
-                ? 'border-green-500 bg-green-50'
-                : 'border-gray-200 hover:border-gray-300'
+              ? 'border-green-500 bg-green-50'
+              : 'border-gray-200 hover:border-gray-300'
               }`}
           >
             <div className="font-medium text-gray-900">Altura da Etiqueta</div>
@@ -170,8 +171,8 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           <button
             onClick={() => handleUpdate({ pageSizeType: 'personalizado' })}
             className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'personalizado'
-                ? 'border-purple-500 bg-purple-50'
-                : 'border-gray-200 hover:border-gray-300'
+              ? 'border-purple-500 bg-purple-50'
+              : 'border-gray-200 hover:border-gray-300'
               }`}
           >
             <div className="font-medium text-gray-900">Personalizado</div>
@@ -225,65 +226,67 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
       )}
 
       {/* Layout (Colunas e Linhas) */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <label className="block text-sm font-medium text-gray-700">
-            📊 Layout da Grade
-          </label>
-          <button
-            onClick={handleAutoCalculate}
-            className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-1"
-          >
-            <i className="fas fa-magic"></i>
-            Calcular Automático
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {/* Colunas */}
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              Colunas (horizontal)
+      {!isThermal && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <label className="block text-sm font-medium text-gray-700">
+              📊 Layout da Grade
             </label>
-            <input
-              type="number"
-              value={currentConfig.columns}
-              onChange={(e) => handleUpdate({ columns: parseInt(e.target.value) || 1 })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-              min="1"
-            />
+            <button
+              onClick={handleAutoCalculate}
+              className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-1"
+            >
+              <i className="fas fa-magic"></i>
+              Calcular Automático
+            </button>
           </div>
 
-          {/* Linhas - só mostra se não for térmica */}
-          {!isThermal && (
+          <div className="grid grid-cols-2 gap-4">
+            {/* Colunas */}
             <div>
               <label className="block text-xs text-gray-600 mb-1">
-                Linhas (vertical)
+                Colunas (horizontal)
               </label>
               <input
                 type="number"
-                value={currentConfig.rows || 1}
-                onChange={(e) => handleUpdate({ rows: parseInt(e.target.value) || 1 })}
+                value={currentConfig.columns}
+                onChange={(e) => handleUpdate({ columns: parseInt(e.target.value) || 1 })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
                 min="1"
               />
             </div>
+
+            {/* Linhas - só mostra se não for térmica */}
+            {!isThermal && (
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Linhas (vertical)
+                </label>
+                <input
+                  type="number"
+                  value={currentConfig.rows || 1}
+                  onChange={(e) => handleUpdate({ rows: parseInt(e.target.value) || 1 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                  min="1"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Total por folha */}
+          {totalPerSheet && totalPerSheet > 0 && (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-calculator text-blue-600"></i>
+                <span className="text-sm text-blue-800">
+                  <strong>Total por folha:</strong> {totalPerSheet} etiquetas
+                  ({currentConfig.columns} × {currentConfig.rows || 1})
+                </span>
+              </div>
+            </div>
           )}
         </div>
-
-        {/* Total por folha */}
-        {totalPerSheet && totalPerSheet > 0 && (
-          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="flex items-center gap-2">
-              <i className="fas fa-calculator text-blue-600"></i>
-              <span className="text-sm text-blue-800">
-                <strong>Total por folha:</strong> {totalPerSheet} etiquetas
-                ({currentConfig.columns} × {currentConfig.rows || 1})
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Margens - esconde margem vertical para térmica */}
       {!isThermal && (
