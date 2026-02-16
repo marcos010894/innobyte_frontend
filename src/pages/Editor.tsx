@@ -870,14 +870,14 @@ const Editor: React.FC = () => {
             <span className="ml-1 hidden md:inline text-xs">Config</span>
           </button>
 
-          <button
+          {/* <button
             onClick={() => setShowAdvancedConfig(true)}
             className="p-2 bg-gradient-to-r from-primary to-blue-600 text-white rounded-lg text-xs hover:from-primary/90 hover:to-blue-600/90"
             title="Avançado"
           >
             <i className="fas fa-sliders-h"></i>
             <span className="ml-1 hidden md:inline text-xs">Avançado</span>
-          </button>
+          </button> */}
 
           <button
             onClick={() => setShowPagePrintConfig(true)}
@@ -1099,7 +1099,7 @@ const Editor: React.FC = () => {
               </button>
               <i className="fas fa-magic text-4xl mb-3 opacity-90"></i>
               <h2 className="text-2xl font-bold">Nova Etiqueta</h2>
-              <p className="text-blue-100 mt-1">Configure as dimensões iniciais</p>
+              <p className="text-blue-100 mt-1">Configure as dimensões iniciais de uma etiqueta</p>
             </div>
 
             <div className="p-8 space-y-6">
