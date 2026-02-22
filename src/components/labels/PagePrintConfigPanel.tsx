@@ -41,7 +41,7 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
       case 'carta':
         return PAGE_SIZES.carta;
       case 'altura-etiqueta':
-        return { width: 999, height: labelConfig.height }; // Largura "infinita" (rolo)
+        return { width: currentConfig.customPageWidth || 108, height: labelConfig.height }; // Largura térmica padrão 108
       case 'personalizado':
         return {
           width: currentConfig.customPageWidth || 210,
@@ -157,6 +157,8 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
               marginTop: 0,
               marginBottom: 0,
               spacingVertical: 0,
+              spacingHorizontal: 2,
+              customPageWidth: 108,
             })}
             className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'altura-etiqueta'
               ? 'border-green-500 bg-green-50'
@@ -194,9 +196,9 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
         )}
       </div>
 
-      {/* Dimensões personalizadas (só para modo personalizado) */}
-      {isCustom && (
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+      {/* Dimensões da Página (Personalizado ou Térmica) */}
+      {(isCustom || isThermal) && (
+        <div className={`${isThermal ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'} border rounded-lg p-4`}>
           <label className="block text-sm font-medium text-gray-700 mb-3">
             📐 Dimensões da Página (mm)
           </label>
@@ -205,8 +207,8 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
               <label className="block text-xs text-gray-600 mb-1">Largura</label>
               <input
                 type="number"
-                value={currentConfig.customPageWidth || 210}
-                onChange={(e) => handleUpdate({ customPageWidth: parseFloat(e.target.value) || 210 })}
+                value={currentConfig.customPageWidth || (isThermal ? 108 : 210)}
+                onChange={(e) => handleUpdate({ customPageWidth: parseFloat(e.target.value) || (isThermal ? 108 : 210) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
                 min="10"
               />
@@ -215,9 +217,10 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
               <label className="block text-xs text-gray-600 mb-1">Altura</label>
               <input
                 type="number"
-                value={currentConfig.customPageHeight || 297}
-                onChange={(e) => handleUpdate({ customPageHeight: parseFloat(e.target.value) || 297 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                value={isThermal ? labelConfig.height : (currentConfig.customPageHeight || 297)}
+                onChange={(e) => !isThermal && handleUpdate({ customPageHeight: parseFloat(e.target.value) || 297 })}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 ${isThermal ? 'bg-gray-100 cursor-not-allowed text-gray-500' : ''}`}
+                disabled={isThermal}
                 min="10"
               />
             </div>
@@ -226,12 +229,12 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
       )}
 
       {/* Layout (Colunas e Linhas) */}
-      {!isThermal && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <label className="block text-sm font-medium text-gray-700">
-              📊 Layout da Grade
-            </label>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <label className="block text-sm font-medium text-gray-700">
+            📊 Layout da Grade
+          </label>
+          {!isThermal && (
             <button
               onClick={handleAutoCalculate}
               className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-1"
@@ -239,11 +242,12 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
               <i className="fas fa-magic"></i>
               Calcular Automático
             </button>
-          </div>
+          )}
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Colunas */}
-            <div>
+        <div className="grid grid-cols-2 gap-4">
+          {/* Colunas */}
+          <div>
               <label className="block text-xs text-gray-600 mb-1">
                 Colunas (horizontal)
               </label>
@@ -286,51 +290,44 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
             </div>
           )}
         </div>
-      )}
 
-      {/* Margens - esconde margem vertical para térmica */}
-      {!isThermal && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            📏 Margens (mm)
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Superior</label>
-              <input
-                type="number"
-                value={currentConfig.marginTop || 0}
-                onChange={(e) => handleUpdate({ marginTop: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                min="0"
-                step="0.5"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Inferior</label>
-              <input
-                type="number"
-                value={currentConfig.marginBottom || 0}
-                onChange={(e) => handleUpdate({ marginBottom: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                min="0"
-                step="0.5"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Margem esquerda sempre visível */}
+      {/* Margens - sempre visíveis, incluindo térmica */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
-          {isThermal ? '📏 Margem Esquerda (mm)' : ''}
+          📏 Margens (mm)
         </label>
-        <div className={`grid ${isThermal ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              {isThermal ? 'Margem Esquerda' : 'Esquerda'}
-            </label>
+            <label className="block text-xs text-gray-600 mb-1">Superior</label>
+            <input
+              type="number"
+              value={currentConfig.marginTop || 0}
+              onChange={(e) => handleUpdate({ marginTop: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+              min="0"
+              step="0.5"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Inferior</label>
+            <input
+              type="number"
+              value={currentConfig.marginBottom || 0}
+              onChange={(e) => handleUpdate({ marginBottom: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+              min="0"
+              step="0.5"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Esquerda</label>
             <input
               type="number"
               value={currentConfig.marginLeft || 0}
@@ -340,19 +337,17 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
               step="0.5"
             />
           </div>
-          {!isThermal && (
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Direita</label>
-              <input
-                type="number"
-                value={currentConfig.marginRight || 0}
-                onChange={(e) => handleUpdate({ marginRight: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
-                min="0"
-                step="0.5"
-              />
-            </div>
-          )}
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Direita</label>
+            <input
+              type="number"
+              value={currentConfig.marginRight || 0}
+              onChange={(e) => handleUpdate({ marginRight: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+              min="0"
+              step="0.5"
+            />
+          </div>
         </div>
       </div>
 
@@ -393,14 +388,14 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
         </div>
       </div>
 
-      {/* Opções adicionais - só para folha */}
-      {!isThermal && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            ⚙️ Opções Adicionais
-          </label>
-          <div className="space-y-3">
-            {/* Pular etiquetas */}
+      {/* Opções adicionais */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-3">
+          ⚙️ Opções Adicionais
+        </label>
+        <div className="space-y-3">
+          {/* Pular etiquetas */}
+          {!isThermal && (
             <div>
               <label className="block text-xs text-gray-600 mb-1">
                 Pular primeiras etiquetas (folha parcialmente usada)
@@ -414,22 +409,22 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
                 placeholder="0"
               />
             </div>
+          )}
 
-            {/* Mostrar bordas */}
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={currentConfig.showBorders || false}
-                onChange={(e) => handleUpdate({ showBorders: e.target.checked })}
-                className="w-4 h-4 text-blue-600 rounded"
-              />
-              <span className="text-sm text-gray-700">
-                Mostrar bordas (para teste de alinhamento)
-              </span>
-            </label>
-          </div>
+          {/* Mostrar bordas */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={currentConfig.showBorders || false}
+              onChange={(e) => handleUpdate({ showBorders: e.target.checked })}
+              className="w-4 h-4 text-blue-600 rounded"
+            />
+            <span className="text-sm text-gray-700">
+              Mostrar bordas (para teste de alinhamento)
+            </span>
+          </label>
         </div>
-      )}
+      </div>
 
       {/* Resumo */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
@@ -441,7 +436,7 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
           <div>
             <strong>Página:</strong> {
               isThermal
-                ? `Altura da etiqueta (${labelConfig.height} ${labelConfig.unit})`
+                ? `Térmica (${currentConfig.customPageWidth || 108} × ${labelConfig.height} ${labelConfig.unit})`
                 : currentConfig.pageSizeType === 'a4'
                   ? 'A4 (210 × 297 mm)'
                   : currentConfig.pageSizeType === 'carta'
