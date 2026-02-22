@@ -30,33 +30,47 @@ const BarcodeInitialConfigModal: React.FC<BarcodeInitialConfigModalProps> = ({ i
                 </div>
 
                 {/* Content - Botões Diretos */}
-                <div className="p-6 grid grid-cols-2 gap-4">
+                <div className="p-6 grid grid-cols-3 gap-4">
 
                     {/* Opção 1: Código */}
                     <button
                         onClick={() => onConfirm('${codigo}')}
-                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group"
+                        className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group"
                     >
-                        <div className="w-12 h-12 rounded-full bg-gray-100 text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 flex items-center justify-center text-xl transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 flex items-center justify-center text-lg transition-colors">
                             <i className="fas fa-hashtag"></i>
                         </div>
                         <div className="text-center">
-                            <span className="block font-bold text-gray-800 group-hover:text-green-800">Cód. Produto</span>
-                            <code className="text-xs text-gray-500 mt-1 block">{'${codigo}'}</code>
+                            <span className="block font-bold text-gray-800 group-hover:text-green-800 text-sm">Cód. Produto</span>
+                            <code className="text-[10px] text-gray-500 mt-1 block">{'${codigo}'}</code>
                         </div>
                     </button>
 
                     {/* Opção 2: SKU */}
                     <button
                         onClick={() => onConfirm('${sku}')}
-                        className="flex flex-col items-center justify-center gap-3 p-6 rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group"
+                        className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group"
                     >
-                        <div className="w-12 h-12 rounded-full bg-gray-100 text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 flex items-center justify-center text-xl transition-colors">
+                        <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 flex items-center justify-center text-lg transition-colors">
                             <i className="fas fa-fingerprint"></i>
                         </div>
                         <div className="text-center">
-                            <span className="block font-bold text-gray-800 group-hover:text-green-800">SKU</span>
-                            <code className="text-xs text-gray-500 mt-1 block">{'${sku}'}</code>
+                            <span className="block font-bold text-gray-800 group-hover:text-green-800 text-sm">SKU</span>
+                            <code className="text-[10px] text-gray-500 mt-1 block">{'${sku}'}</code>
+                        </div>
+                    </button>
+
+                    {/* Opção 3: Barcode */}
+                    <button
+                        onClick={() => onConfirm('${barcode}')}
+                        className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-500 group-hover:bg-green-100 group-hover:text-green-600 flex items-center justify-center text-lg transition-colors">
+                            <i className="fas fa-barcode"></i>
+                        </div>
+                        <div className="text-center">
+                            <span className="block font-bold text-gray-800 group-hover:text-green-800 text-sm">Barcode</span>
+                            <code className="text-[10px] text-gray-500 mt-1 block">{'${barcode}'}</code>
                         </div>
                     </button>
 
