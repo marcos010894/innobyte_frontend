@@ -170,33 +170,31 @@ function generateZPL(
   // Início do label
   if (isHeader) {
     lines.push('^XA'); // Start Format
-    lines.push('^CI28'); // Enable UTF-8 encoding (Zebra standard for Unicode)
+    lines.push('^CI28'); // Enable UTF-8 encoding
+
+    // Comentários de Debug
+    lines.push(`^FX Debug Info:`);
+    lines.push(`^FX DPI: ${dpi}`);
+    lines.push(`^FX Label Size: ${labelWidth}mm x ${labelHeight}mm`);
+    lines.push(`^FX Offset: X=${offsetX}mm, Y=${offsetY}mm`);
+    lines.push(`^FX Speed: ${printSpeed}, Darkness: ${darkness}`);
+
+    // Configurações do rolo/página (aplica-se ao bloco todo)
+    const totalWidthDots = mmToDots((labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0), dpi);
+    lines.push(`^PW${totalWidthDots}`); // Print Width
+    lines.push(`^LL${mmToDots(labelHeight, dpi)}`); // Label Length
+    lines.push(`^PR${printSpeed}`); // Print Rate/Speed
+    lines.push(`~SD${darkness}`); // Set Darkness
   }
 
-  // Comentários de Debug
-  lines.push(`^FX Debug Info:`);
-  lines.push(`^FX DPI: ${dpi}`);
-  lines.push(`^FX Label Size: ${labelWidth}mm x ${labelHeight}mm`);
-  lines.push(`^FX Offset: X=${offsetX}mm, Y=${offsetY}mm`);
-  lines.push(`^FX Label Size (dots): ${mmToDots(labelWidth, dpi)} x ${mmToDots(labelHeight, dpi)}`);
-  lines.push(`^FX Speed: ${printSpeed}, Darkness: ${darkness}`);
-
-  // Configurações do label
-  const totalWidthDots = mmToDots((labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0), dpi);
-  lines.push(`^PW${totalWidthDots}`); // Print Width
-  lines.push(`^LL${mmToDots(labelHeight, dpi)}`); // Label Length
-  lines.push(`^PR${printSpeed}`); // Print Rate/Speed
-  lines.push(`~SD${darkness}`); // Set Darkness
-  
-  // Definir Label Home (Origem) com o deslocamento configurado
-  const xOffsetDots = mmToDots(offsetX, dpi) + extraOffsetXDots;
-  const yOffsetDots = mmToDots(offsetY, dpi);
-  lines.push(`^LH${xOffsetDots},${yOffsetDots}`); // Label Home (origin)
+  // Coordenadas base (em dots)
+  const baseX = mmToDots(offsetX, dpi) + extraOffsetXDots;
+  const baseY = mmToDots(offsetY, dpi);
 
   // Processar cada elemento
   for (const element of elements) {
-    const x = pxToDots(element.x, dpi);
-    const y = pxToDots(element.y, dpi);
+    const x = pxToDots(element.x, dpi) + baseX;
+    const y = pxToDots(element.y, dpi) + baseY;
     const width = pxToDots(element.width, dpi);
     const height = pxToDots(element.height, dpi);
 
@@ -368,7 +366,7 @@ function generateEPL(
   isFooter: boolean = true,
   extraOffsetXDots: number = 0
 ): string {
-  const { dpi, labelWidth, labelHeight, printSpeed = 3, darkness = 10, copies = 1 } = config;
+  const { dpi, labelWidth, labelHeight, printSpeed = 3, darkness = 10, copies = 1, offsetX = 0, offsetY = 0 } = config;
 
   const lines: string[] = [];
 
@@ -379,16 +377,18 @@ function generateEPL(
   }
 
   // Configurações
-  const totalWidthDots = mmToDots((labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0), dpi);
-  lines.push(`q${totalWidthDots}`); // Set label width
-  lines.push(`Q${mmToDots(labelHeight, dpi)},24`); // Set label height + gap
-  lines.push(`S${printSpeed}`); // Speed
-  lines.push(`D${darkness}`); // Density
+  if (isHeader) {
+    const totalWidthDots = mmToDots((labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0), dpi);
+    lines.push(`q${totalWidthDots}`); // Set label width
+    lines.push(`Q${mmToDots(labelHeight, dpi)},24`); // Set label height + gap
+    lines.push(`S${printSpeed}`); // Speed
+    lines.push(`D${darkness}`); // Density
+  }
 
   // Processar cada elemento
   for (const element of elements) {
-    const x = pxToDots(element.x, dpi) + extraOffsetXDots;
-    const y = pxToDots(element.y, dpi);
+    const x = pxToDots(element.x, dpi) + extraOffsetXDots + mmToDots(offsetX, dpi);
+    const y = pxToDots(element.y, dpi) + mmToDots(offsetY, dpi);
     const width = pxToDots(element.width, dpi);
     const height = pxToDots(element.height, dpi);
 
@@ -494,7 +494,7 @@ function generateTSPL(
   isFooter: boolean = true,
   extraOffsetXDots: number = 0
 ): string {
-  const { dpi, labelWidth, labelHeight, printSpeed = 4, darkness = 8, copies = 1 } = config;
+  const { dpi, labelWidth, labelHeight, printSpeed = 4, darkness = 8, copies = 1, offsetX = 0, offsetY = 0 } = config;
 
   const lines: string[] = [];
 
@@ -512,8 +512,8 @@ function generateTSPL(
 
   // Processar cada elemento
   for (const element of elements) {
-    const x = pxToDots(element.x, dpi) + extraOffsetXDots;
-    const y = pxToDots(element.y, dpi);
+    const x = pxToDots(element.x, dpi) + extraOffsetXDots + mmToDots(offsetX, dpi);
+    const y = pxToDots(element.y, dpi) + mmToDots(offsetY, dpi);
     const width = pxToDots(element.width, dpi);
     const height = pxToDots(element.height, dpi);
 
