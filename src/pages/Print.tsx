@@ -1055,12 +1055,17 @@ const Print: React.FC = () => {
       const isAutoMode = printMode === 'auto';
 
       if (isAutoMode) {
-        // Modo AUTO: cada página do PDF tem o tamanho exato da etiqueta
-        pdfFormat = [labelWidth, labelHeight];
-        pdfOrientation = labelWidth > labelHeight ? 'landscape' : 'portrait';
-        columns = 1;
+        // Modo AUTO: cada página do PDF tem o tamanho da "linha" de etiquetas
+        // No caso de rolo de 1 coluna, é a própria etiqueta. 
+        // No caso de 2 colunas, é a largura das 2 + espaçamento.
+        const totalWidth = (labelWidth * columns) + (spacingHorizontal * (columns - 1));
+        
+        pdfFormat = [totalWidth, labelHeight];
+        pdfOrientation = totalWidth > labelHeight ? 'landscape' : 'portrait';
+        // rows continua sendo 1 no modo AUTO (térmica)
         rows = 1;
-        console.log('🎯 Modo AUTO: página =', labelWidth, 'x', labelHeight, 'mm (tamanho exato da etiqueta)');
+
+        console.log(`🎯 Modo AUTO (${columns} colunas): página =`, totalWidth, 'x', labelHeight, 'mm');
       } else {
         // Modo GRID: usar página A4 ou personalizada com layout de grade
         if (pageFormat === 'a4') {
@@ -1094,21 +1099,14 @@ const Print: React.FC = () => {
       let labelsPerPage = columns * rows;
 
       if (isAutoMode) {
-        // No modo AUTO, calcular automaticamente quantas etiquetas cabem na página
-        labelsPerRow = Math.floor(pageWidth / labelWidth);
-        labelsPerColumn = Math.floor(pageHeight / labelHeight);
-
-        // Garantir que sempre há pelo menos 1 etiqueta por página
-        if (labelsPerRow < 1) labelsPerRow = 1;
-        if (labelsPerColumn < 1) labelsPerColumn = 1;
+        // No modo AUTO, o número de etiquetas por linha é o que foi configurado nas colunas
+        // Já que a largura da página foi calculada exatamente para isso.
+        labelsPerRow = columns; 
+        labelsPerColumn = 1; // Modo térmica/rolo é sempre 1 linha por página "lógica"
 
         labelsPerPage = labelsPerRow * labelsPerColumn;
 
-        console.log(`📐 Modo AUTO - Grid automático calculado:`);
-        console.log(`   Página: ${pageWidth}mm × ${pageHeight}mm`);
-        console.log(`   Etiqueta: ${labelWidth}mm × ${labelHeight}mm`);
-        console.log(`   Cálculo: floor(${pageWidth}/${labelWidth}) × floor(${pageHeight}/${labelHeight})`);
-        console.log(`   Grid: ${labelsPerRow} colunas × ${labelsPerColumn} linhas = ${labelsPerPage} etiquetas/página`);
+        console.log(`📐 Modo AUTO - Grid: ${labelsPerRow} colunas × ${labelsPerColumn} linha`);
       } else {
         // Modo GRID MANUAL
         // Verificar se a configuração de linhas PODE caber na página
@@ -1193,9 +1191,9 @@ const Print: React.FC = () => {
               currentPage++;
             }
 
-            // Calcular posição X e Y (sem margens, etiquetas coladas)
-            const x = col * labelWidth;
-            const y = row * labelHeight;
+            // Calcular posição X e Y (considerando espaçamento se houver múltiplas colunas)
+            const x = col * (labelWidth + spacingHorizontal);
+            const y = row * (labelHeight + spacingVertical);
 
             console.log(`📍 Etiqueta ${totalLabelsPrinted + 1} - Página ${currentPage}, Posição: (${x.toFixed(1)}mm, ${y.toFixed(1)}mm), Grid: [col ${col}, row ${row}]`);
 
@@ -1343,11 +1341,12 @@ const Print: React.FC = () => {
         quantity: getPrintQuantity(product.id),
       }));
 
-      // Usar dimensões do template se não configuradas manualmente
       const configToUse: ThermalPrintConfig = {
         ...thermalConfig,
         labelWidth: thermalConfig.labelWidth || template.config.width,
         labelHeight: thermalConfig.labelHeight || template.config.height,
+        columns: printConfig.columns,
+        spacingHorizontal: printConfig.spacingHorizontal,
       };
 
       // Gerar comandos

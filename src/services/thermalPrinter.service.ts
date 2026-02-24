@@ -22,6 +22,10 @@ export interface ThermalPrintConfig {
   labelWidth: number;
   /** Altura do label em mm */
   labelHeight: number;
+  /** Número de colunas (para rolos multi-coluna) */
+  columns?: number;
+  /** Espaçamento horizontal entre colunas em mm */
+  spacingHorizontal?: number;
   /** Velocidade de impressão (1-10) */
   printSpeed?: number;
   /** Densidade/Escuridão (0-30 para ZPL, 0-15 para EPL) */
@@ -150,19 +154,24 @@ function estimateBarcodeWidth(format: BarcodeFormat, value: string, narrowBarWid
 // ===================== ZPL Generator =====================
 
 /**
- * Gera comandos ZPL para uma etiqueta
+ * Gera comandos ZPL para uma etiqueta ou parte de um rolo
  */
 function generateZPL(
   elements: LabelElement[],
-  config: ThermalPrintConfig
+  config: ThermalPrintConfig,
+  isHeader: boolean = true,
+  isFooter: boolean = true,
+  extraOffsetXDots: number = 0
 ): string {
   const { dpi, labelWidth, labelHeight, printSpeed = 4, darkness = 15, copies = 1, offsetX = 0, offsetY = 0 } = config;
 
   const lines: string[] = [];
 
   // Início do label
-  lines.push('^XA'); // Start Format
-  lines.push('^CI28'); // Enable UTF-8 encoding (Zebra standard for Unicode)
+  if (isHeader) {
+    lines.push('^XA'); // Start Format
+    lines.push('^CI28'); // Enable UTF-8 encoding (Zebra standard for Unicode)
+  }
 
   // Comentários de Debug
   lines.push(`^FX Debug Info:`);
@@ -173,13 +182,14 @@ function generateZPL(
   lines.push(`^FX Speed: ${printSpeed}, Darkness: ${darkness}`);
 
   // Configurações do label
-  lines.push(`^PW${mmToDots(labelWidth, dpi)}`); // Print Width
+  const totalWidthDots = mmToDots((labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0), dpi);
+  lines.push(`^PW${totalWidthDots}`); // Print Width
   lines.push(`^LL${mmToDots(labelHeight, dpi)}`); // Label Length
   lines.push(`^PR${printSpeed}`); // Print Rate/Speed
   lines.push(`~SD${darkness}`); // Set Darkness
   
   // Definir Label Home (Origem) com o deslocamento configurado
-  const xOffsetDots = mmToDots(offsetX, dpi);
+  const xOffsetDots = mmToDots(offsetX, dpi) + extraOffsetXDots;
   const yOffsetDots = mmToDots(offsetY, dpi);
   lines.push(`^LH${xOffsetDots},${yOffsetDots}`); // Label Home (origin)
 
@@ -334,12 +344,14 @@ function generateZPL(
   }
 
   // Quantidade de cópias
-  if (copies > 1) {
+  if (isFooter && copies > 1) {
     lines.push(`^PQ${copies}`);
   }
 
   // Fim do label
-  lines.push('^XZ'); // End Format
+  if (isFooter) {
+    lines.push('^XZ'); // End Format
+  }
 
   return lines.join('\n');
 }
@@ -351,25 +363,31 @@ function generateZPL(
  */
 function generateEPL(
   elements: LabelElement[],
-  config: ThermalPrintConfig
+  config: ThermalPrintConfig,
+  isHeader: boolean = true,
+  isFooter: boolean = true,
+  extraOffsetXDots: number = 0
 ): string {
   const { dpi, labelWidth, labelHeight, printSpeed = 3, darkness = 10, copies = 1 } = config;
 
   const lines: string[] = [];
 
   // Início/Reset
-  lines.push(''); // Linha em branco
-  lines.push('N'); // Clear image buffer
+  if (isHeader) {
+    lines.push(''); // Linha em branco
+    lines.push('N'); // Clear image buffer
+  }
 
   // Configurações
-  lines.push(`q${mmToDots(labelWidth, dpi)}`); // Set label width
+  const totalWidthDots = mmToDots((labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0), dpi);
+  lines.push(`q${totalWidthDots}`); // Set label width
   lines.push(`Q${mmToDots(labelHeight, dpi)},24`); // Set label height + gap
   lines.push(`S${printSpeed}`); // Speed
   lines.push(`D${darkness}`); // Density
 
   // Processar cada elemento
   for (const element of elements) {
-    const x = pxToDots(element.x, dpi);
+    const x = pxToDots(element.x, dpi) + extraOffsetXDots;
     const y = pxToDots(element.y, dpi);
     const width = pxToDots(element.width, dpi);
     const height = pxToDots(element.height, dpi);
@@ -457,7 +475,9 @@ function generateEPL(
   }
 
   // Imprimir
-  lines.push(`P${copies}`); // Print X copies
+  if (isFooter) {
+    lines.push(`P${copies}`); // Print X copies
+  }
 
   return lines.join('\n');
 }
@@ -469,24 +489,30 @@ function generateEPL(
  */
 function generateTSPL(
   elements: LabelElement[],
-  config: ThermalPrintConfig
+  config: ThermalPrintConfig,
+  isHeader: boolean = true,
+  isFooter: boolean = true,
+  extraOffsetXDots: number = 0
 ): string {
   const { dpi, labelWidth, labelHeight, printSpeed = 4, darkness = 8, copies = 1 } = config;
 
   const lines: string[] = [];
 
   // Configuração inicial
-  lines.push(`SIZE ${labelWidth} mm, ${labelHeight} mm`);
-  lines.push(`GAP 2 mm, 0 mm`); // Gap entre etiquetas
-  lines.push(`SPEED ${printSpeed}`);
-  lines.push(`DENSITY ${darkness}`);
-  lines.push(`DIRECTION 1`);
-  lines.push(`REFERENCE 0,0`);
-  lines.push(`CLS`); // Clear buffer
+  if (isHeader) {
+    const totalWidth = (labelWidth * (config.columns || 1)) + ((config.columns || 1) > 1 ? (config.spacingHorizontal || 0) * ((config.columns || 1) - 1) : 0);
+    lines.push(`SIZE ${totalWidth} mm, ${labelHeight} mm`);
+    lines.push(`GAP 2 mm, 0 mm`); // Gap entre etiquetas
+    lines.push(`SPEED ${printSpeed}`);
+    lines.push(`DENSITY ${darkness}`);
+    lines.push(`DIRECTION 1`);
+    lines.push(`REFERENCE 0,0`);
+    lines.push(`CLS`); // Clear buffer
+  }
 
   // Processar cada elemento
   for (const element of elements) {
-    const x = pxToDots(element.x, dpi);
+    const x = pxToDots(element.x, dpi) + extraOffsetXDots;
     const y = pxToDots(element.y, dpi);
     const width = pxToDots(element.width, dpi);
     const height = pxToDots(element.height, dpi);
@@ -562,7 +588,9 @@ function generateTSPL(
   }
 
   // Imprimir
-  lines.push(`PRINT ${copies},1`); // quantity, copies
+  if (isFooter) {
+    lines.push(`PRINT ${copies},1`); // quantity, copies
+  }
 
   return lines.join('\n');
 }
@@ -581,7 +609,10 @@ export function generateThermalCommands(
     maxNameLength?: number;
     priceFormat?: 'decimal' | 'integer';
     pricePrefix?: string;
-  }
+  },
+  isHeader: boolean = true,
+  isFooter: boolean = true,
+  extraOffsetXDots: number = 0
 ): string {
   // Substituir variáveis do template com dados do produto
   const elementsWithData = replaceTemplateVariables(
@@ -593,11 +624,11 @@ export function generateThermalCommands(
   // Gerar comandos baseado no formato
   switch (config.format) {
     case 'ZPL':
-      return generateZPL(elementsWithData, config);
+      return generateZPL(elementsWithData, config, isHeader, isFooter, extraOffsetXDots);
     case 'EPL':
-      return generateEPL(elementsWithData, config);
+      return generateEPL(elementsWithData, config, isHeader, isFooter, extraOffsetXDots);
     case 'TSPL':
-      return generateTSPL(elementsWithData, config);
+      return generateTSPL(elementsWithData, config, isHeader, isFooter, extraOffsetXDots);
     default:
       throw new Error(`Formato não suportado: ${config.format}`);
   }
@@ -618,25 +649,46 @@ export function generateBatchThermalCommands(
   }
 ): string {
   const allCommands: string[] = [];
+  const columns = config.columns || 1;
+  const spacingH = config.spacingHorizontal || 0;
+  const dpi = config.dpi;
 
+  // Criar uma lista plana de etiquetas a serem impressas
+  const flatLabels: Product[] = [];
   for (const { product, quantity } of products) {
-    // Configurar quantidade no config
-    // Forçar quantity para number para garantir que copies seja number
-    const configWithQuantity: ThermalPrintConfig = {
-      ...config,
-      copies: Number(quantity) || 1
-    };
+    for (let i = 0; i < quantity; i++) {
+      flatLabels.push(product);
+    }
+  }
 
-    const commands = generateThermalCommands(
-      template,
-      product,
-      configWithQuantity,
-      printOptions
-    );
+  // Agrupar em linhas de acordo com o número de colunas
+  for (let i = 0; i < flatLabels.length; i += columns) {
+    const rowLabels = flatLabels.slice(i, i + columns);
+    const rowCommands: string[] = [];
 
-    allCommands.push(`; === Produto: ${product.name} (${quantity}x) ===`);
-    allCommands.push(commands);
-    allCommands.push(''); // Linha em branco entre produtos
+    allCommands.push(`; === Linha ${Math.floor(i / columns) + 1} ===`);
+
+    for (let col = 0; col < rowLabels.length; col++) {
+      const product = rowLabels[col];
+      const isHeader = col === 0;
+      const isFooter = col === rowLabels.length - 1 || col === columns - 1;
+      const extraOffsetXDots = mmToDots(col * (config.labelWidth + spacingH), dpi);
+
+      const labelCommands = generateThermalCommands(
+        template,
+        product,
+        { ...config, copies: 1 }, // Copies is handled at the row level or per label in TSPL/EPL if needed, but for ZPL ^PQ is at footer
+        printOptions,
+        isHeader,
+        isFooter,
+        extraOffsetXDots
+      );
+
+      rowCommands.push(labelCommands);
+    }
+
+    allCommands.push(rowCommands.join('\n'));
+    allCommands.push(''); // Linha em branco entre linhas de etiquetas
   }
 
   return allCommands.join('\n');
