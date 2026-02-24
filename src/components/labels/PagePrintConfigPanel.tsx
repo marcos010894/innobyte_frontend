@@ -150,16 +150,24 @@ const PagePrintConfigPanel: React.FC<PagePrintConfigPanelProps> = ({
 
           {/* Altura da Etiqueta (Térmica) */}
           <button
-            onClick={() => handleUpdate({
-              pageSizeType: 'altura-etiqueta',
-              rows: 1,
-              columns: 1,
-              marginTop: 0,
-              marginBottom: 0,
-              spacingVertical: 0,
-              spacingHorizontal: 2,
-              customPageWidth: 108,
-            })}
+            onClick={() => {
+              const columns = currentConfig.columns || 1;
+              const spacingH = currentConfig.spacingHorizontal || 0;
+              // Sugerir largura baseada nas colunas (ex: 2 colunas de 30mm + 2mm spacing = 62mm)
+              const suggestedWidth = Math.max(108, (labelConfig.width * columns) + (spacingH * (columns - 1)));
+              
+              handleUpdate({
+                pageSizeType: 'altura-etiqueta',
+                rows: 1,
+                // Preservar colunas existentes se houver
+                columns: columns,
+                marginTop: 0,
+                marginBottom: 0,
+                spacingVertical: 0,
+                spacingHorizontal: spacingH,
+                customPageWidth: suggestedWidth,
+              });
+            }}
             className={`p-4 border-2 rounded-lg text-left transition-all ${currentConfig.pageSizeType === 'altura-etiqueta'
               ? 'border-green-500 bg-green-50'
               : 'border-gray-200 hover:border-gray-300'

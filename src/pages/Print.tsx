@@ -465,10 +465,12 @@ const Print: React.FC = () => {
         pageWidth = 215.9;
         pageHeight = 279.4;
       } else if (ppc.pageSizeType === 'altura-etiqueta') {
-        // Térmica: página tem altura da etiqueta
-        pageWidth = template.config.width * (ppc.columns || 1) + (ppc.marginLeft || 0) + (ppc.spacingHorizontal || 0) * ((ppc.columns || 1) - 1);
-        pageHeight = template.config.height;
-      } else if (ppc.pageSizeType === 'personalizado') {
+      // Térmica: página tem largura total das colunas + margens
+      pageWidth = (template.config.width * (ppc.columns || 1)) + 
+                ((ppc.columns || 1) > 1 ? (ppc.spacingHorizontal || 0) * ((ppc.columns || 1) - 1) : 0) +
+                (ppc.marginLeft || 0) + (ppc.marginRight || 0);
+      pageHeight = template.config.height + (ppc.marginTop || 0) + (ppc.marginBottom || 0);
+    } else if (ppc.pageSizeType === 'personalizado') {
         pageWidth = ppc.customPageWidth || 210;
         pageHeight = ppc.customPageHeight || 297;
       }
@@ -1055,13 +1057,10 @@ const Print: React.FC = () => {
       const isAutoMode = printMode === 'auto';
 
       if (isAutoMode) {
-        // Modo AUTO: cada página do PDF tem o tamanho da "linha" de etiquetas
-        // No caso de rolo de 1 coluna, é a própria etiqueta. 
-        // No caso de 2 colunas, é a largura das 2 + espaçamento.
-        const totalWidth = (labelWidth * columns) + (spacingHorizontal * (columns - 1));
+        const totalWidth = (labelWidth * columns) + (spacingHorizontal * (columns - 1)) + effectiveMarginLeft + (printConfig.marginRight || 0);
         
-        pdfFormat = [totalWidth, labelHeight];
-        pdfOrientation = totalWidth > labelHeight ? 'landscape' : 'portrait';
+        pdfFormat = [totalWidth, labelHeight + effectiveMarginTop + effectiveMarginBottom];
+        pdfOrientation = totalWidth > (labelHeight + effectiveMarginTop + effectiveMarginBottom) ? 'landscape' : 'portrait';
         // rows continua sendo 1 no modo AUTO (térmica)
         rows = 1;
 
@@ -1191,9 +1190,9 @@ const Print: React.FC = () => {
               currentPage++;
             }
 
-            // Calcular posição X e Y (considerando espaçamento se houver múltiplas colunas)
-            const x = col * (labelWidth + spacingHorizontal);
-            const y = row * (labelHeight + spacingVertical);
+            // Calcular posição X e Y (considerando espaçamento e MARGENS)
+            const x = col * (labelWidth + spacingHorizontal) + effectiveMarginLeft;
+            const y = row * (labelHeight + spacingVertical) + effectiveMarginTop;
 
             console.log(`📍 Etiqueta ${totalLabelsPrinted + 1} - Página ${currentPage}, Posição: (${x.toFixed(1)}mm, ${y.toFixed(1)}mm), Grid: [col ${col}, row ${row}]`);
 
