@@ -191,8 +191,12 @@ function generateZPL(
   const baseX = mmToDots(offsetX, dpi) + extraOffsetXDots;
   const baseY = mmToDots(offsetY, dpi);
 
+  // Ordenar elementos por zIndex para garantir que fundos não cubram elementos sobrepostos
+  // zIndex maior = desenhado depois (por cima)
+  const sortedElements = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+
   // Processar cada elemento
-  for (const element of elements) {
+  for (const element of sortedElements) {
     const x = pxToDots(element.x, dpi) + baseX;
     const y = pxToDots(element.y, dpi) + baseY;
     const width = pxToDots(element.width, dpi);
@@ -385,8 +389,11 @@ function generateEPL(
     lines.push(`D${darkness}`); // Density
   }
 
+  // Ordenar elementos por zIndex
+  const sortedElements = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+
   // Processar cada elemento
-  for (const element of elements) {
+  for (const element of sortedElements) {
     const x = pxToDots(element.x, dpi) + extraOffsetXDots + mmToDots(offsetX, dpi);
     const y = pxToDots(element.y, dpi) + mmToDots(offsetY, dpi);
     const width = pxToDots(element.width, dpi);
@@ -510,8 +517,11 @@ function generateTSPL(
     lines.push(`CLS`); // Clear buffer
   }
 
+  // Ordenar elementos por zIndex
+  const sortedElements = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+
   // Processar cada elemento
-  for (const element of elements) {
+  for (const element of sortedElements) {
     const x = pxToDots(element.x, dpi) + extraOffsetXDots + mmToDots(offsetX, dpi);
     const y = pxToDots(element.y, dpi) + mmToDots(offsetY, dpi);
     const width = pxToDots(element.width, dpi);
