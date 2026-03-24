@@ -9,10 +9,6 @@ import type {
   OmieNotaEntrada,
 } from '@/services/omie.service';
 
-// Helpers de formatação
-const formatDate = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-
 const OmieIntegration: React.FC = () => {
   const { user } = useAuth();
 
