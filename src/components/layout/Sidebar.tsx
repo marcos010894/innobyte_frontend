@@ -19,7 +19,8 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         { path: '/templates', icon: 'fa-layer-group', label: 'Modelos Salvos' },
         { path: '/editor', icon: 'fa-edit', label: 'Criador de Modelos' },
         { path: '/print', icon: 'fa-print', label: 'Impressão' },
-        { path: '/api-integration', icon: 'fa-database', label: 'Integração API' },
+        { path: '/api-integration', icon: 'fa-database', label: 'E-gestor' },
+        { path: '/omie-integration', icon: 'fa-boxes', label: 'Omie' },
       ],
     },
     {

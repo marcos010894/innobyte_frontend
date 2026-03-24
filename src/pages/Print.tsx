@@ -12,6 +12,7 @@ import DebugComparisonModal from '@/components/labels/DebugComparisonModal';
 import { useAuth } from '@hooks/useAuth';
 import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
+import * as omieService from '@/services/omie.service';
 import type { IntegracaoAPI } from '@/types/api.types';
 import { renderLabelToNativeCanvas } from '@/utils/canvasRenderer';
 import {
@@ -43,7 +44,8 @@ const Print: React.FC = () => {
 
   // Estados para integração E-gestor
   const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
-  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor'>('manual');
+  const [integracaoOmie, setIntegracaoOmie] = useState<IntegracaoAPI | null>(null);
+  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor' | 'omie' | 'ambos'>('manual');
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [egestorPage, setEgestorPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
@@ -91,6 +93,8 @@ const Print: React.FC = () => {
   const [importMode, setImportMode] = useState<'nf' | 'sincronizacao'>('sincronizacao');
   const [importNumeroNF, setImportNumeroNF] = useState('');
   const [importSerieNF, setImportSerieNF] = useState('');
+  const [importDataIni, setImportDataIni] = useState(new Date().toISOString().split('T')[0]);
+  const [importDataFim, setImportDataFim] = useState(new Date().toISOString().split('T')[0]);
   const [importCategoriaId, setImportCategoriaId] = useState<number | null>(null);
   const [diasComparacao, setDiasComparacao] = useState<number | null>(null); // null = última sincronização
   const [categorias, setCategorias] = useState<egestorService.EgestorCategoria[]>([]);
@@ -164,21 +168,37 @@ const Print: React.FC = () => {
         console.error('❌ Erro ao carregar templates da API:', err);
       }
 
-      // Verificar se tem integração com E-gestor
+      // Verificar integrações com ERPs
       if (user?.id) {
         try {
           const response = await integracoesService.getIntegracoes(user.id);
           if (response.success && response.data) {
-            const egestorIntegracao = response.data.data.find(
-              (i) => i.provedor === 'eGestor' && i.ativa && i.status_conexao === 'conectado'
+            const allIntegrations = response.data.data;
+            
+            // Busca integrações ativas (mesmo que não conectadas no momento)
+            // Normaliza para comparação case-insensitive
+            const eg = allIntegrations.find(i => 
+              (i.provedor.toLowerCase() === 'egestor' || i.provedor.toLowerCase() === 'e-gestor') && i.ativa
             );
-            if (egestorIntegracao) {
-              setIntegracaoEgestor(egestorIntegracao);
+            const om = allIntegrations.find(i => 
+              i.provedor.toLowerCase() === 'omie' && i.ativa
+            );
+
+            setIntegracaoEgestor(eg || null);
+            setIntegracaoOmie(om || null);
+
+            // Define a fonte inicial e carrega produtos
+            if (om && eg) {
+              setFonteDados('ambos');
+              await loadAllProducts(1, false, eg.id, om.id);
+            } else if (om) {
+              setFonteDados('omie');
+              await loadOmieProducts(om.id, 1);
+            } else if (eg) {
               setFonteDados('egestor');
-              // Carregar produtos do E-gestor
-              await loadEgestorProducts(egestorIntegracao.id, 1);
+              await loadEgestorProducts(eg.id, 1);
             } else {
-              // Sem integração, usar produtos de exemplo
+              setFonteDados('manual');
               loadMockProducts();
             }
           } else {
@@ -262,10 +282,17 @@ const Print: React.FC = () => {
     }
   };
 
-  // Carregar mais produtos do E-gestor
+  // Carregar mais produtos conforme a fonte
   const loadMoreProducts = async () => {
-    if (!integracaoEgestor || !hasMoreProducts || isLoadingProducts) return;
-    await loadEgestorProducts(integracaoEgestor.id, egestorPage + 1, true);
+    if (!hasMoreProducts || isLoadingProducts) return;
+    
+    if (fonteDesvios === 'ambos') {
+      await loadAllProducts(egestorPage + 1, true);
+    } else if (fonteDesvios === 'egestor' && integracaoEgestor) {
+      await loadEgestorProducts(integracaoEgestor.id, egestorPage + 1, true);
+    } else if (fonteDesvios === 'omie' && integracaoOmie) {
+      await loadOmieProducts(integracaoOmie.id, egestorPage + 1, true);
+    }
   };
 
   // Recarregar produtos do E-gestor
@@ -275,6 +302,121 @@ const Print: React.FC = () => {
     setSelectedProducts(new Set());
     setPrintQuantities({});
     await loadEgestorProducts(integracaoEgestor.id, 1, false);
+  };
+
+  // Função para carregar produtos do Omie
+  const loadOmieProducts = async (integracaoId: number, page: number, append: boolean = false) => {
+    setIsLoadingProducts(true);
+    try {
+      const response = await omieService.getProdutos(integracaoId, { pagina: page, filtro: searchTerm || undefined });
+
+      if (response.success && response.data) {
+        const convertedProducts = response.data.data.map(item => ({
+          id: item.codigo_produto.toString(),
+          name: item.descricao,
+          code: item.codigo || item.codigo_produto.toString(),
+          sku: item.codigo || item.codigo_produto.toString(),
+          price: item.valor_unitario || 0,
+          quantity: 0, 
+          category: item.familia_produto || 'Geral',
+          barcode: item.codigo_barras || '',
+          description: item.descricao,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+
+        if (append) {
+          setProducts(prev => [...prev, ...convertedProducts]);
+        } else {
+          setProducts(convertedProducts);
+        }
+
+        setEgestorPage(page); // Reutilizando estado de página
+        setHasMoreProducts(response.data.data.length >= 50);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao carregar produtos do Omie:', err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  // Recarregar produtos do Omie
+  const refreshOmieProducts = async () => {
+    if (!integracaoOmie) return;
+    setProducts([]);
+    setSelectedProducts(new Set());
+    setPrintQuantities({});
+    await loadOmieProducts(integracaoOmie.id, 1, false);
+  };
+
+  // Função para carregar de todas as fontes simultaneamente
+  const loadAllProducts = async (page: number, append: boolean = false, egId?: number, omId?: number) => {
+    const egestorId = egId || integracaoEgestor?.id;
+    const omieId = omId || integracaoOmie?.id;
+    
+    if (!egestorId && !omieId) return;
+
+    setIsLoadingProducts(true);
+    try {
+      const promises = [];
+      if (egestorId) promises.push(egestorService.getProdutos(egestorId, { page, filtro: searchTerm || undefined }));
+      if (omieId) promises.push(omieService.getProdutos(omieId, { pagina: page, filtro: searchTerm || undefined }));
+
+      const results = await Promise.allSettled(promises);
+      let combined: Product[] = [];
+
+      results.forEach((res, index) => {
+        if (res.status === 'fulfilled' && res.value.success && res.value.data) {
+          const actualIsEgestor = egestorId && index === 0;
+          
+          if (actualIsEgestor) {
+            const egestorData = res.value.data as any;
+            if (egestorData.data) {
+              combined = [...combined, ...egestorData.data.map(egestorService.converterProdutoParaImpressao)];
+            }
+          } else {
+            const omieData = res.value.data as any;
+            if (omieData.data) {
+              combined = [...combined, ...omieData.data.map((item: any) => ({
+                id: `omie-${item.codigo_produto}`,
+                name: item.descricao || '',
+                code: item.codigo || item.codigo_produto?.toString() || '',
+                sku: item.codigo || item.codigo_produto?.toString() || '',
+                price: item.valor_unitario || 0,
+                quantity: 0,
+                category: item.familia_produto || 'Geral',
+                barcode: item.codigo_barras || '',
+                description: item.descricao,
+                provider: 'omie',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }))];
+            }
+          }
+        }
+      });
+
+      if (append) {
+        setProducts(prev => [...prev, ...combined]);
+      } else {
+        setProducts(combined);
+      }
+
+      setEgestorPage(page);
+      setHasMoreProducts(combined.length >= 25);
+    } catch (err) {
+      console.error('❌ Erro ao carregar produtos de ambas as fontes:', err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  const refreshAllProducts = async () => {
+    setProducts([]);
+    setSelectedProducts(new Set());
+    setPrintQuantities({});
+    await loadAllProducts(1, false);
   };
 
   // Efeito para manter foco no input do scanner quando modo ativo
@@ -330,8 +472,8 @@ const Print: React.FC = () => {
       return;
     }
 
-    // Se não encontrou localmente e tem integração E-gestor, busca na API
-    if (integracaoEgestor) {
+    // Se não encontrou localmente e tem integração, busca na API conforme a fonte selecionada
+    if (fonteDesvios === 'egestor' && integracaoEgestor) {
       setIsLoadingProducts(true);
       try {
         const response = await egestorService.getProdutos(integracaoEgestor.id, {
@@ -341,54 +483,90 @@ const Print: React.FC = () => {
 
         if (response.success && response.data && response.data.data.length > 0) {
           const foundProducts = response.data.data.map(egestorService.converterProdutoParaImpressao);
-
-          // Adiciona os produtos encontrados à lista (evita duplicatas)
-          setProducts(prev => {
-            const existingIds = new Set(prev.map(p => p.id));
-            const newProducts = foundProducts.filter(p => !existingIds.has(p.id));
-            return [...prev, ...newProducts];
-          });
-
-          // Seleciona o primeiro produto encontrado
-          if (foundProducts.length > 0) {
-            const firstProduct = foundProducts[0];
-            setSelectedProducts(prev => {
-              const newSet = new Set(prev);
-              newSet.add(firstProduct.id);
-              return newSet;
-            });
-
-            // Define quantidade como 1
-            setPrintQuantities(prev => ({
-              ...prev,
-              [firstProduct.id]: 1,
-            }));
-
-            // Scroll automático e feedback visual (aguarda o DOM atualizar)
-            setTimeout(() => {
-              const productCard = document.getElementById(`product-card-${firstProduct.id}`);
-              if (productCard) {
-                productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                productCard.classList.add('ring-4', 'ring-green-500', 'bg-green-50');
-                setTimeout(() => {
-                  productCard.classList.remove('ring-4', 'ring-green-500', 'bg-green-50');
-                }, 1000);
-              }
-            }, 200);
-          }
+          addScannedProducts(foundProducts);
         } else {
-          // Produto não encontrado
-          alert(`❌ Produto não encontrado: ${barcode}`);
+          alert(`❌ Produto não encontrado no E-gestor: ${barcode}`);
         }
       } catch (err) {
-        console.error('❌ Erro ao buscar produto:', err);
-        alert(`❌ Erro ao buscar produto: ${barcode}`);
+        console.error('❌ Erro ao buscar produto no E-gestor:', err);
       } finally {
         setIsLoadingProducts(false);
       }
+    } else if (fonteDesvios === 'omie' && integracaoOmie) {
+      setIsLoadingProducts(true);
+      try {
+        const response = await omieService.getProdutos(integracaoOmie.id, {
+          pagina: 1,
+          filtro: barcode
+        });
+
+        if (response.success && response.data && response.data.data.length > 0) {
+          const foundProducts = response.data.data.map(item => ({
+            id: `omie-${item.codigo_produto}`,
+            name: item.descricao,
+            code: item.codigo || item.codigo_produto.toString(),
+            sku: item.codigo || item.codigo_produto.toString(),
+            price: item.valor_unitario || 0,
+            quantity: 0,
+            category: item.familia_produto || 'Geral',
+            barcode: item.codigo_barras || '',
+            provider: 'omie',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }));
+          addScannedProducts(foundProducts);
+        } else {
+          alert(`❌ Produto não encontrado no Omie: ${barcode}`);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao buscar produto no Omie:', err);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    } else if (fonteDesvios === 'ambos') {
+      setIsLoadingProducts(true);
+      try {
+        const [egestorRes, omieRes] = await Promise.allSettled([
+          integracaoEgestor ? egestorService.getProdutos(integracaoEgestor.id, { page: 1, filtro: barcode }) : Promise.reject(),
+          integracaoOmie ? omieService.getProdutos(integracaoOmie.id, { pagina: 1, filtro: barcode }) : Promise.reject()
+        ]);
+
+        let allFound: Product[] = [];
+        if (egestorRes.status === 'fulfilled' && egestorRes.value.success && egestorRes.value.data?.data) {
+          const egData = egestorRes.value.data.data as any[];
+          allFound = [...allFound, ...egData.map(egestorService.converterProdutoParaImpressao)];
+        }
+        if (omieRes.status === 'fulfilled' && omieRes.value.success && omieRes.value.data?.data) {
+          const omData = omieRes.value.data.data as any[];
+          allFound = [...allFound, ...omData.map(item => ({
+            id: `omie-${item.codigo_produto}`,
+            name: item.descricao || '',
+            code: item.codigo || item.codigo_produto?.toString() || '',
+            sku: item.codigo || item.codigo_produto?.toString() || '',
+            price: item.valor_unitario || 0,
+            quantity: 0,
+            category: item.familia_produto || 'Geral',
+            barcode: item.codigo_barras || '',
+            provider: 'omie',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }))];
+        }
+
+        if (allFound.length > 0) {
+          addScannedProducts(allFound);
+        } else {
+          alert(`❌ Produto não encontrado em nenhuma fonte: ${barcode}`);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao buscar produto em ambas as fontes:', err);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    } else if (fonteDesvios === 'manual') {
+      alert(`❌ Produto não encontrado na lista: ${barcode}. Ative uma integração para buscar online.`);
     } else {
-      // Sem integração E-gestor
-      alert(`❌ Produto não encontrado na lista: ${barcode}`);
+      alert(`❌ Produto não encontrado: ${barcode}`);
     }
 
     // Limpar input e manter foco
@@ -401,6 +579,44 @@ const Print: React.FC = () => {
   // Handler para o input do scanner
   const handleScannerInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setScannerInput(e.target.value);
+  };
+
+  // Função auxiliar para adicionar produtos escaneados
+  const addScannedProducts = (foundProducts: Product[]) => {
+    // Adiciona os produtos encontrados à lista (evita duplicatas)
+    setProducts(prev => {
+      const existingIds = new Set(prev.map(p => p.id));
+      const newProducts = foundProducts.filter(p => !existingIds.has(p.id));
+      return [...prev, ...newProducts];
+    });
+
+    // Seleciona o primeiro produto encontrado
+    if (foundProducts.length > 0) {
+      const firstProduct = foundProducts[0];
+      setSelectedProducts(prev => {
+        const newSet = new Set(prev);
+        newSet.add(firstProduct.id);
+        return newSet;
+      });
+
+      // Define quantidade como 1
+      setPrintQuantities(prev => ({
+        ...prev,
+        [firstProduct.id]: 1,
+      }));
+
+      // Scroll automático e feedback visual (aguarda o DOM atualizar)
+      setTimeout(() => {
+        const productCard = document.getElementById(`product-card-${firstProduct.id}`);
+        if (productCard) {
+          productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          productCard.classList.add('ring-4', 'ring-green-500', 'bg-green-50');
+          setTimeout(() => {
+            productCard.classList.remove('ring-4', 'ring-green-500', 'bg-green-50');
+          }, 1000);
+        }
+      }, 200);
+    }
   };
 
   // Handler para Enter ou Tab do scanner
@@ -824,6 +1040,133 @@ const Print: React.FC = () => {
       setImportResult({
         success: false,
         message: error.message || 'Erro ao sincronizar estoque',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Importar itens de NF de Entrada (Omie)
+  const handleImportOmieNF = async () => {
+    if (!integracaoOmie || !importNumeroNF.trim()) {
+      alert('Informe o número da nota fiscal');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await omieService.importarNFEntrada(
+        integracaoOmie.id,
+        importNumeroNF.trim(),
+        importSerieNF.trim() || undefined
+      );
+
+      if (result.success && result.data) {
+        const itensConvertidos = result.data.itens.map(
+          omieService.converterItemParaImpressao
+        );
+
+        // Adicionar produtos à lista
+        setProducts(prev => {
+          const produtosExistentes = new Set(prev.map(p => p.id));
+          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
+          return [...prev, ...novosProdutos as Product[]];
+        });
+
+        // Seleciona todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[item.produto_id.toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+
+        setImportResult({
+          success: true,
+          message: result.message || `Importados ${result.data.total_itens} itens da NF ${importNumeroNF}`,
+          total: result.data.total_quantidade,
+        });
+
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 1500);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nota fiscal não encontrada ou sem itens',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar nota fiscal',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Importar Movimentações (Omie)
+  const handleImportOmieMovimentacao = async (dataIni: string, dataFim: string) => {
+    if (!integracaoOmie) return;
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await omieService.importarMovimentacao(
+        integracaoOmie.id,
+        dataIni,
+        dataFim
+      );
+
+      if (result.success && result.data && result.data.itens.length > 0) {
+        const itensConvertidos = result.data.itens.map(
+          omieService.converterItemParaImpressao
+        );
+
+        // Adicionar produtos à lista
+        setProducts(prev => {
+          const produtosExistentes = new Set(prev.map(p => p.id));
+          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
+          return [...prev, ...novosProdutos as Product[]];
+        });
+
+        // Seleciona todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[item.produto_id.toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+
+        setImportResult({
+          success: true,
+          message: result.message || `Importadas ${result.data.total_itens} movimentações`,
+          total: result.data.total_quantidade,
+        });
+
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 2000);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nenhuma movimentação encontrada no período',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar movimentações',
         total: 0,
       });
     } finally {
@@ -1404,6 +1747,61 @@ const Print: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Coluna Esquerda: Lista de Produtos */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Seletor de Fonte de Dados */}
+            {(integracaoEgestor || integracaoOmie) && (
+              <div className="bg-white rounded-lg shadow-sm p-4 border border-blue-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                    <i className="fas fa-database text-xl"></i>
+                  </div>
+                  <div>
+                    <span className="block text-sm font-bold text-gray-700">Fonte de Dados Ativa</span>
+                    <span className="text-xs text-gray-500">Define de onde buscar produtos e atualizações</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl w-full sm:w-auto">
+                  {integracaoEgestor && (
+                    <button
+                      onClick={() => setFonteDados('egestor')}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        fonteDesvios === 'egestor'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      E-gestor
+                    </button>
+                  )}
+                  {integracaoOmie && (
+                    <button
+                      onClick={() => setFonteDados('omie')}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        fonteDesvios === 'omie'
+                          ? 'bg-white text-indigo-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Omie
+                    </button>
+                  )}
+                  {(integracaoEgestor && integracaoOmie) && (
+                    <button
+                      onClick={() => {
+                        setFonteDados('ambos');
+                        refreshAllProducts();
+                      }}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        fonteDesvios === 'ambos'
+                          ? 'bg-white text-purple-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Ambos
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             {/* Barra de Importação e Gerenciamento */}
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-sm p-4 text-white">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -1416,22 +1814,44 @@ const Print: React.FC = () => {
                     Importe automaticamente de NF de Compra ou Movimentações de Estoque
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowImportModal(true);
-                    loadCategorias();
-                  }}
-                  disabled={!integracaoEgestor}
-                  className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <i className="fas fa-download mr-2"></i>
-                  Importar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : refreshEgestorProducts)}
+                    disabled={isLoadingProducts || (!integracaoEgestor && !integracaoOmie)}
+                    className="px-4 py-2 bg-white/10 text-white border border-white/20 rounded-lg hover:bg-white/20 transition-colors font-medium disabled:opacity-50"
+                  >
+                    <i className={`fas fa-sync ${isLoadingProducts ? 'fa-spin' : ''} mr-2`}></i>
+                    Atualizar
+                  </button>
+                  {fonteDesvios === 'omie' && (
+                    <button
+                      onClick={() => {
+                        setImportMode('sincronizacao');
+                        setShowImportModal(true);
+                      }}
+                      className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium shadow-sm"
+                    >
+                      <i className="fas fa-calendar-alt mr-2"></i>
+                      Movimentações
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowImportModal(true);
+                      if (integracaoEgestor) loadCategorias();
+                    }}
+                    disabled={!integracaoEgestor && !integracaoOmie}
+                    className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i className="fas fa-download mr-2"></i>
+                    Importar
+                  </button>
+                </div>
               </div>
-              {!integracaoEgestor && (
+              {!integracaoEgestor && !integracaoOmie && (
                 <p className="text-xs text-yellow-200 mt-2">
                   <i className="fas fa-exclamation-triangle mr-1"></i>
-                  Configure a integração E-gestor para usar a importação
+                  Configure uma integração (E-gestor ou Omie) para usar a importação
                 </p>
               )}
             </div>
@@ -1466,15 +1886,30 @@ const Print: React.FC = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 relative">
-                  <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                  <input
-                    type="text"
-                    placeholder="Buscar produto por nome ou código..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
+                <div className="flex-1 flex gap-2">
+                  <div className="relative flex-1">
+                    <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input
+                      type="text"
+                      placeholder="Buscar produto por nome ou código..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          fonteDesvios === 'ambos' ? refreshAllProducts() : (fonteDesvios === 'omie' ? refreshOmieProducts() : refreshEgestorProducts());
+                        }
+                      }}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                  <button
+                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : refreshEgestorProducts)}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm whitespace-nowrap"
+                    title="Pesquisar em toda a base do ERP"
+                  >
+                    <i className="fas fa-cloud-arrow-down mr-2"></i>
+                    Buscar na Nuvem
+                  </button>
                 </div>
                 <button
                   onClick={handleExcluirSelecionados}
@@ -1624,6 +2059,34 @@ const Print: React.FC = () => {
                         </span>
                         <button
                           onClick={refreshEgestorProducts}
+                          disabled={isLoadingProducts}
+                          className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                          title="Recarregar produtos"
+                        >
+                          <i className={`fas fa-sync ${isLoadingProducts ? 'fa-spin' : ''}`}></i>
+                        </button>
+                      </>
+                    ) : fonteDesvios === 'omie' ? (
+                      <>
+                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                          <i className="fas fa-plug mr-1"></i>Omie
+                        </span>
+                        <button
+                          onClick={refreshOmieProducts}
+                          disabled={isLoadingProducts}
+                          className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                          title="Recarregar produtos"
+                        >
+                          <i className={`fas fa-sync ${isLoadingProducts ? 'fa-spin' : ''}`}></i>
+                        </button>
+                      </>
+                    ) : fonteDesvios === 'ambos' ? (
+                      <>
+                        <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full">
+                          <i className="fas fa-plug mr-1"></i>E-gestor & Omie
+                        </span>
+                        <button
+                          onClick={refreshAllProducts}
                           disabled={isLoadingProducts}
                           className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded transition-colors"
                           title="Recarregar produtos"
@@ -2186,6 +2649,35 @@ const Print: React.FC = () => {
               </div>
 
               <div className="p-6 space-y-6">
+                {/* Seleção de Provedor (se houver mais de um) */}
+                {integracaoEgestor && integracaoOmie && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Selecione a Origem dos Dados:
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setFonteDados('egestor')}
+                        className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'egestor'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold'
+                          : 'border-gray-200 text-gray-500'
+                          }`}
+                      >
+                        E-gestor
+                      </button>
+                      <button
+                        onClick={() => setFonteDados('omie')}
+                        className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'omie'
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold'
+                          : 'border-gray-200 text-gray-500'
+                          }`}
+                      >
+                        Omie
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Seletor de modo de importação */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -2199,9 +2691,13 @@ const Print: React.FC = () => {
                         : 'border-gray-200 hover:border-purple-300'
                         }`}
                     >
-                      <i className="fas fa-sync-alt text-2xl mb-2"></i>
-                      <div className="font-medium">Entrada de Estoque</div>
-                      <div className="text-xs text-gray-500">Sincroniza e mostra diferenças</div>
+                      <i className={`fas ${fonteDesvios === 'omie' ? 'fa-exchange-alt' : 'fa-sync-alt'} text-2xl mb-2`}></i>
+                      <div className="font-medium">
+                        {fonteDesvios === 'omie' ? 'Movimentações' : 'Entrada de Estoque'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {fonteDesvios === 'omie' ? 'Por intervalo de data' : 'Sincroniza e mostra diferenças'}
+                      </div>
                     </button>
                     <button
                       onClick={() => setImportMode('nf')}
@@ -2217,8 +2713,8 @@ const Print: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Formulário para Sincronização de Estoque */}
-                {importMode === 'sincronizacao' && (
+                {/* Formulário para Sincronização de Estoque (E-gestor) */}
+                {importMode === 'sincronizacao' && fonteDesvios === 'egestor' && (
                   <div className="space-y-4">
                     {/* Info sobre última sincronização */}
                     {ultimaSincronizacao && (
@@ -2297,7 +2793,38 @@ const Print: React.FC = () => {
                   </div>
                 )}
 
-                {/* Formulário para NF de Compra */}
+                {/* Formulário para Movimentações de Estoque (Omie) */}
+                {importMode === 'sincronizacao' && fonteDesvios === 'omie' && (
+                  <div className="space-y-4">
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-sm text-indigo-700">
+                      <i className="fas fa-info-circle mr-2"></i>
+                      Lista as movimentações de estoque no intervalo selecionado e importa os itens.
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Data Inicial</label>
+                        <input
+                          type="date"
+                          value={importDataIni}
+                          onChange={(e) => setImportDataIni(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Data Final</label>
+                        <input
+                          type="date"
+                          value={importDataFim}
+                          onChange={(e) => setImportDataFim(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulário para NF de Compra (Ambos) */}
                 {importMode === 'nf' && (
                   <div className="space-y-4">
                     <div>
@@ -2325,8 +2852,8 @@ const Print: React.FC = () => {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-sm text-blue-700">
+                    <div className={`p-4 rounded-lg border ${fonteDesvios === 'omie' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+                      <p className="text-sm">
                         <i className="fas fa-lightbulb mr-2"></i>
                         <strong>Dica:</strong> A quantidade de cada item será a quantidade da nota.
                         O preço de venda será buscado da nota ou do cadastro do produto.
@@ -2352,13 +2879,6 @@ const Print: React.FC = () => {
                         Total de etiquetas: <strong>{importResult.total}</strong>
                       </div>
                     )}
-                    {importResult.estatisticas && (
-                      <div className="flex gap-3 mt-2 text-xs text-gray-600">
-                        <span>📥 {importResult.estatisticas.entradas} entradas</span>
-                        <span>🆕 {importResult.estatisticas.novos} novos</span>
-                        <span>📤 {importResult.estatisticas.saidas} saídas</span>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -2371,9 +2891,18 @@ const Print: React.FC = () => {
                     Cancelar
                   </button>
                   <button
-                    onClick={importMode === 'nf' ? handleImportNF : handleImportSincronizacao}
+                    onClick={() => {
+                      if (fonteDesvios === 'egestor') {
+                        importMode === 'nf' ? handleImportNF() : handleImportSincronizacao();
+                      } else {
+                        importMode === 'nf' ? handleImportOmieNF() : handleImportOmieMovimentacao(importDataIni, importDataFim);
+                      }
+                    }}
                     disabled={isImporting || (importMode === 'nf' && !importNumeroNF.trim())}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    className={`flex-1 px-4 py-3 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium ${fonteDesvios === 'omie'
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
+                      : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                      }`}
                   >
                     {isImporting ? (
                       <>
@@ -2382,8 +2911,8 @@ const Print: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <i className={`fas ${importMode === 'sincronizacao' ? 'fa-sync-alt' : 'fa-download'} mr-2`}></i>
-                        {importMode === 'sincronizacao' ? 'Sincronizar e Importar' : 'Importar'}
+                        <i className={`fas ${importMode === 'sincronizacao' ? (fonteDesvios === 'omie' ? 'fa-exchange-alt' : 'fa-sync-alt') : 'fa-download'} mr-2`}></i>
+                        {importMode === 'sincronizacao' ? (fonteDesvios === 'omie' ? 'Listar Movimentações' : 'Sincronizar e Importar') : 'Importar'}
                       </>
                     )}
                   </button>
