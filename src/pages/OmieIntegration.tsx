@@ -30,13 +30,6 @@ const OmieIntegration: React.FC = () => {
   const [ultimaMovimentacao, setUltimaMovimentacao] = useState<OmieMovimentacaoEstoque | null>(null);
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
 
-  // Estados de movimentação por período
-  const hoje = formatDate(new Date());
-  const [dataInicial, setDataInicial] = useState(hoje);
-  const [dataFinal, setDataFinal] = useState(hoje);
-  const [isImportando, setIsImportando] = useState(false);
-  const [resultadoImportacao, setResultadoImportacao] = useState<{ total_itens: number; total_quantidade: number; documento?: string } | null>(null);
-
   // Form de nova integração
   const [formData, setFormData] = useState({ nome_integracao: '', app_key: '', app_secret: '' });
 
@@ -131,34 +124,6 @@ const OmieIntegration: React.FC = () => {
       }
     } finally {
       setIsLoadingInfo(false);
-    }
-  };
-
-  const handleImportarPorPeriodo = async () => {
-    if (!selectedIntegracao) return;
-    setIsImportando(true);
-    setResultadoImportacao(null);
-    setMessage(null);
-    try {
-      const response = await omieService.importarMovimentacao(
-        selectedIntegracao.id,
-        dataInicial,
-        dataFinal,
-        true
-      );
-      if (response.success && response.data) {
-        setResultadoImportacao(response.data);
-        setMessage({
-          type: 'success',
-          text: `✅ ${response.message || `Importados ${response.data.total_itens} produtos!`}`,
-        });
-      } else {
-        setMessage({ type: 'info', text: response.message || 'Nenhuma movimentação encontrada no período.' });
-      }
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Erro ao importar movimentações' });
-    } finally {
-      setIsImportando(false);
     }
   };
 
@@ -558,63 +523,6 @@ const OmieIntegration: React.FC = () => {
                     </div>
                   </div>
                 )}
-
-                {/* Importar Movimentações por Período */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">
-                    <i className="fas fa-calendar-alt mr-2 text-indigo-500"></i>
-                    Movimentações por Período
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial (DD/MM/AAAA)</label>
-                      <input
-                        type="text"
-                        value={dataInicial}
-                        onChange={(e) => setDataInicial(e.target.value)}
-                        placeholder="01/01/2025"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data Final (DD/MM/AAAA)</label>
-                      <input
-                        type="text"
-                        value={dataFinal}
-                        onChange={(e) => setDataFinal(e.target.value)}
-                        placeholder="31/12/2025"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleImportarPorPeriodo}
-                    disabled={isImportando || !selectedIntegracao || selectedIntegracao.status_conexao !== 'conectado'}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 transition-all font-medium"
-                  >
-                    {isImportando ? (
-                      <><i className="fas fa-spinner fa-spin mr-2"></i>Buscando movimentações...</>
-                    ) : (
-                      <><i className="fas fa-search mr-2"></i>Buscar Entradas no Período</>
-                    )}
-                  </button>
-
-                  {resultadoImportacao && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <p className="text-green-800 font-medium">
-                        <i className="fas fa-check-circle mr-2"></i>
-                        {resultadoImportacao.total_itens} produtos · {resultadoImportacao.total_quantidade} unidades
-                      </p>
-                      {resultadoImportacao.documento && (
-                        <p className="text-green-700 text-sm mt-1">{resultadoImportacao.documento}</p>
-                      )}
-                      <p className="text-green-700 text-xs mt-2">
-                        <i className="fas fa-info-circle mr-1"></i>
-                        Esses itens estão disponíveis na tela de Impressão via integração Omie
-                      </p>
-                    </div>
-                  )}
-                </div>
 
                 {/* Dica de uso */}
                 <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-4 border border-amber-200">
