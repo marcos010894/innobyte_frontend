@@ -23,6 +23,7 @@ export interface OmieProduto {
   preco_custo?: number;
   familia_produto?: string;
   ativo?: string;        // "S" ou "N"
+  quantidade_estoque?: number;
 }
 
 export interface OmieEstoqueProduto {
