@@ -938,16 +938,12 @@ const Print: React.FC = () => {
           egestorService.converterItemImportadoParaImpressao
         );
 
-        // Adicionar produtos à lista
-        setProducts(prev => {
-          const produtosExistentes = new Set(prev.map(p => p.id));
-          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
-          return [...prev, ...novosProdutos as Product[]];
-        });
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as Product[]);
 
         // Selecionar todos os produtos importados e definir quantidades
         const novosIds = new Set(itensConvertidos.map(p => p.id));
-        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+        setSelectedProducts(novosIds);
 
         const novasQuantidades: Record<string, number> = {};
         result.data.itens.forEach(item => {
@@ -1004,16 +1000,12 @@ const Print: React.FC = () => {
           egestorService.converterItemSincronizacaoParaImpressao
         );
 
-        // Adicionar produtos à lista
-        setProducts(prev => {
-          const produtosExistentes = new Set(prev.map(p => p.id));
-          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
-          return [...prev, ...novosProdutos as Product[]];
-        });
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as Product[]);
 
         // Selecionar todos os produtos importados e definir quantidades
         const novosIds = new Set(itensConvertidos.map(p => p.id));
-        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+        setSelectedProducts(novosIds);
 
         const novasQuantidades: Record<string, number> = {};
         result.data.itens.forEach(item => {
@@ -1079,16 +1071,12 @@ const Print: React.FC = () => {
           omieService.converterItemParaImpressao
         );
 
-        // Adicionar produtos à lista
-        setProducts(prev => {
-          const produtosExistentes = new Set(prev.map(p => p.id));
-          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
-          return [...prev, ...novosProdutos as Product[]];
-        });
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as Product[]);
 
         // Seleciona todos os produtos importados e definir quantidades
         const novosIds = new Set(itensConvertidos.map(p => p.id));
-        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+        setSelectedProducts(novosIds);
 
         const novasQuantidades: Record<string, number> = {};
         result.data.itens.forEach(item => {
@@ -1141,16 +1129,12 @@ const Print: React.FC = () => {
           omieService.converterItemParaImpressao
         );
 
-        // Adicionar produtos à lista
-        setProducts(prev => {
-          const produtosExistentes = new Set(prev.map(p => p.id));
-          const novosProdutos = itensConvertidos.filter(p => !produtosExistentes.has(p.id));
-          return [...prev, ...novosProdutos as Product[]];
-        });
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as Product[]);
 
         // Seleciona todos os produtos importados e definir quantidades
         const novosIds = new Set(itensConvertidos.map(p => p.id));
-        setSelectedProducts(prev => new Set([...prev, ...novosIds]));
+        setSelectedProducts(novosIds);
 
         const novasQuantidades: Record<string, number> = {};
         result.data.itens.forEach(item => {
