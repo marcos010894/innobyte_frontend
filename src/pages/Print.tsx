@@ -13,6 +13,7 @@ import { useAuth } from '@hooks/useAuth';
 import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
 import * as omieService from '@/services/omie.service';
+import { toast } from 'react-toastify';
 import type { IntegracaoAPI } from '@/types/api.types';
 import { renderLabelToNativeCanvas } from '@/utils/canvasRenderer';
 import {
@@ -367,33 +368,40 @@ const Print: React.FC = () => {
       let combined: Product[] = [];
 
       results.forEach((res, index) => {
-        if (res.status === 'fulfilled' && res.value.success && res.value.data) {
-          const actualIsEgestor = egestorId && index === 0;
-          
-          if (actualIsEgestor) {
-            const egestorData = res.value.data as any;
-            if (egestorData.data) {
-              combined = [...combined, ...egestorData.data.map(egestorService.converterProdutoParaImpressao)];
+        const isEgestor = egestorId && index === 0;
+        const providerName = isEgestor ? 'E-gestor' : 'Omie';
+
+        if (res.status === 'fulfilled') {
+          if (res.value.success && res.value.data) {
+            const resultData = res.value.data as any;
+            if (resultData.data) {
+              const items = isEgestor 
+                ? resultData.data.map(egestorService.converterProdutoParaImpressao)
+                : resultData.data.map((item: any) => ({
+                    id: `omie-${item.codigo_produto}`,
+                    name: item.descricao || '',
+                    code: item.codigo || item.codigo_produto?.toString() || '',
+                    sku: item.codigo || item.codigo_produto?.toString() || '',
+                    price: item.valor_unitario || 0,
+                    quantity: item.quantidade_estoque || 0,
+                    category: item.familia_produto || 'Geral',
+                    barcode: item.codigo_barras || '',
+                    description: item.descricao,
+                    provider: 'omie',
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  }));
+              
+              combined = [...combined, ...items];
+              console.log(`✅ ${providerName}: Carregados ${items.length} produtos.`);
             }
           } else {
-            const omieData = res.value.data as any;
-            if (omieData.data) {
-              combined = [...combined, ...omieData.data.map((item: any) => ({
-                id: `omie-${item.codigo_produto}`,
-                name: item.descricao || '',
-                code: item.codigo || item.codigo_produto?.toString() || '',
-                sku: item.codigo || item.codigo_produto?.toString() || '',
-                price: item.valor_unitario || 0,
-                quantity: item.quantidade_estoque || 0,
-                category: item.familia_produto || 'Geral',
-                barcode: item.codigo_barras || '',
-                description: item.descricao,
-                provider: 'omie',
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }))];
-            }
+            console.error(`❌ ${providerName}: Erro na resposta da API:`, res.value.message);
+            toast.error(`${providerName}: ${res.value.message || 'Erro ao carregar produtos'}`);
           }
+        } else {
+          console.error(`❌ ${providerName}: Promise rejeitada:`, res.reason);
+          toast.error(`Falha crítica ao conectar com ${providerName}`);
         }
       });
 
@@ -404,9 +412,11 @@ const Print: React.FC = () => {
       }
 
       setEgestorPage(page);
+      // Ajuste para considerar o total combinado
       setHasMoreProducts(combined.length >= 25);
-    } catch (err) {
-      console.error('❌ Erro ao carregar produtos de ambas as fontes:', err);
+    } catch (err: any) {
+      console.error('❌ Erro geral ao carregar produtos:', err);
+      toast.error('Erro ao processar produtos das integrações');
     } finally {
       setIsLoadingProducts(false);
     }
@@ -1251,7 +1261,7 @@ const Print: React.FC = () => {
     // Criar uma cópia do template para edição temporária
     const templateCopy: LabelTemplate = {
       ...selectedTemplateData,
-      id: crypto.randomUUID(),
+      id: crypto.randomUUID ? crypto.randomUUID() : `temp-${Math.random().toString(36).substring(2, 9)}`,
       config: {
         ...selectedTemplateData.config,
         name: `${selectedTemplateData.config.name} (Editando)`
