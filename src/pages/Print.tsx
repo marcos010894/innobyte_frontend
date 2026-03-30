@@ -13,6 +13,7 @@ import { useAuth } from '@hooks/useAuth';
 import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
 import * as omieService from '@/services/omie.service';
+import * as blingService from '@/services/bling.service';
 import { toast } from 'react-toastify';
 import type { IntegracaoAPI } from '@/types/api.types';
 import { renderLabelToNativeCanvas } from '@/utils/canvasRenderer';
@@ -46,7 +47,8 @@ const Print: React.FC = () => {
   // Estados para integração E-gestor
   const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
   const [integracaoOmie, setIntegracaoOmie] = useState<IntegracaoAPI | null>(null);
-  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor' | 'omie' | 'ambos'>('manual');
+  const [integracaoBling, setIntegracaoBling] = useState<IntegracaoAPI | null>(null);
+  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor' | 'omie' | 'bling' | 'ambos'>('manual');
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [egestorPage, setEgestorPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
@@ -184,20 +186,27 @@ const Print: React.FC = () => {
             const om = allIntegrations.find(i => 
               i.provedor.toLowerCase() === 'omie' && i.ativa
             );
+            const bl = allIntegrations.find(i => 
+              i.provedor.toLowerCase() === 'bling' && i.ativa
+            );
 
             setIntegracaoEgestor(eg || null);
             setIntegracaoOmie(om || null);
+            setIntegracaoBling(bl || null);
 
             // Define a fonte inicial e carrega produtos
-            if (om && eg) {
+            if ((om && eg) || (om && bl && bl.token) || (eg && bl && bl.token)) {
               setFonteDados('ambos');
-              await loadAllProducts(1, false, eg.id, om.id);
+              await loadAllProducts(1, false, eg?.id, om?.id, bl?.id);
             } else if (om) {
               setFonteDados('omie');
               await loadOmieProducts(om.id, 1);
             } else if (eg) {
               setFonteDados('egestor');
               await loadEgestorProducts(eg.id, 1);
+            } else if (bl && bl.token) {
+              setFonteDados('bling');
+              await loadBlingProducts(bl.id, 1);
             } else {
               setFonteDados('manual');
               loadMockProducts();
@@ -293,6 +302,8 @@ const Print: React.FC = () => {
       await loadEgestorProducts(integracaoEgestor.id, egestorPage + 1, true);
     } else if (fonteDesvios === 'omie' && integracaoOmie) {
       await loadOmieProducts(integracaoOmie.id, egestorPage + 1, true);
+    } else if (fonteDesvios === 'bling' && integracaoBling) {
+      await loadBlingProducts(integracaoBling.id, egestorPage + 1, true);
     }
   };
 
@@ -351,59 +362,101 @@ const Print: React.FC = () => {
     await loadOmieProducts(integracaoOmie.id, 1, false);
   };
 
+  // Função para carregar produtos do Bling
+  const loadBlingProducts = async (integracaoId: number, page: number, append: boolean = false) => {
+    setIsLoadingProducts(true);
+    try {
+      const response = await blingService.getProdutos(integracaoId, { pagina: page, filtro: searchTerm || undefined });
+
+      if (response.success && response.data) {
+        const convertedProducts = response.data.data.map(blingService.converterProdutoParaImpressao);
+
+        if (append) {
+          setProducts(prev => [...prev, ...convertedProducts]);
+        } else {
+          setProducts(convertedProducts);
+        }
+
+        setEgestorPage(page);
+        setHasMoreProducts(response.data.data.length >= 50);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao carregar produtos do Bling:', err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  // Recarregar produtos do Bling
+  const refreshBlingProducts = async () => {
+    if (!integracaoBling) return;
+    setProducts([]);
+    setSelectedProducts(new Set());
+    setPrintQuantities({});
+    await loadBlingProducts(integracaoBling.id, 1, false);
+  };
+
   // Função para carregar de todas as fontes simultaneamente
-  const loadAllProducts = async (page: number, append: boolean = false, egId?: number, omId?: number) => {
+  const loadAllProducts = async (page: number, append: boolean = false, egId?: number, omId?: number, blId?: number) => {
     const egestorId = egId || integracaoEgestor?.id;
     const omieId = omId || integracaoOmie?.id;
+    const blingId = blId || integracaoBling?.id;
     
-    if (!egestorId && !omieId) return;
+    if (!egestorId && !omieId && !blingId) return;
 
     setIsLoadingProducts(true);
     try {
       const promises = [];
       if (egestorId) promises.push(egestorService.getProdutos(egestorId, { page, filtro: searchTerm || undefined }));
       if (omieId) promises.push(omieService.getProdutos(omieId, { pagina: page, filtro: searchTerm || undefined }));
+      if (blingId) promises.push(blingService.getProdutos(blingId, { pagina: page, filtro: searchTerm || undefined }));
 
       const results = await Promise.allSettled(promises);
       let combined: Product[] = [];
+      let resultIdx = 0;
 
-      results.forEach((res, index) => {
-        const isEgestor = egestorId && index === 0;
-        const providerName = isEgestor ? 'E-gestor' : 'Omie';
-
-        if (res.status === 'fulfilled') {
-          if (res.value.success && res.value.data) {
-            const resultData = res.value.data as any;
-            if (resultData.data) {
-              const items = isEgestor 
-                ? resultData.data.map(egestorService.converterProdutoParaImpressao)
-                : resultData.data.map((item: any) => ({
-                    id: `omie-${item.codigo_produto}`,
-                    name: item.descricao || '',
-                    code: item.codigo || item.codigo_produto?.toString() || '',
-                    sku: item.codigo || item.codigo_produto?.toString() || '',
-                    price: item.valor_unitario || 0,
-                    quantity: item.quantidade_estoque || 0,
-                    category: item.familia_produto || 'Geral',
-                    barcode: item.codigo_barras || '',
-                    description: item.descricao,
-                    provider: 'omie',
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                  }));
-              
-              combined = [...combined, ...items];
-              console.log(`✅ ${providerName}: Carregados ${items.length} produtos.`);
-            }
-          } else {
-            console.error(`❌ ${providerName}: Erro na resposta da API:`, res.value.message);
-            toast.error(`${providerName}: ${res.value.message || 'Erro ao carregar produtos'}`);
-          }
-        } else {
-          console.error(`❌ ${providerName}: Promise rejeitada:`, res.reason);
-          toast.error(`Falha crítica ao conectar com ${providerName}`);
+      // Processar E-gestor
+      if (egestorId) {
+        const res = results[resultIdx++];
+        if (res.status === 'fulfilled' && res.value.success && res.value.data) {
+          const items = (res.value.data as any).data.map(egestorService.converterProdutoParaImpressao);
+          combined = [...combined, ...items];
+          console.log(`✅ E-gestor: Carregados ${items.length} produtos.`);
         }
-      });
+      }
+
+      // Processar Omie
+      if (omieId) {
+        const res = results[resultIdx++];
+        if (res.status === 'fulfilled' && res.value.success && res.value.data) {
+          const items = (res.value.data as any).data.map((item: any) => ({
+            id: `omie-${item.codigo_produto}`,
+            name: item.descricao || '',
+            code: item.codigo || item.codigo_produto?.toString() || '',
+            sku: item.codigo || item.codigo_produto?.toString() || '',
+            price: item.valor_unitario || 0,
+            quantity: item.quantidade_estoque || 0,
+            category: item.familia_produto || 'Geral',
+            barcode: item.codigo_barras || '',
+            description: item.descricao,
+            provider: 'omie',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }));
+          combined = [...combined, ...items];
+          console.log(`✅ Omie: Carregados ${items.length} produtos.`);
+        }
+      }
+
+      // Processar Bling
+      if (blingId) {
+        const res = results[resultIdx++];
+        if (res.status === 'fulfilled' && res.value.success && res.value.data) {
+          const items = (res.value.data as any).data.map(blingService.converterProdutoParaImpressao);
+          combined = [...combined, ...items];
+          console.log(`✅ Bling: Carregados ${items.length} produtos.`);
+        }
+      }
 
       if (append) {
         setProducts(prev => [...prev, ...combined]);
@@ -412,7 +465,6 @@ const Print: React.FC = () => {
       }
 
       setEgestorPage(page);
-      // Ajuste para considerar o total combinado
       setHasMoreProducts(combined.length >= 25);
     } catch (err: any) {
       console.error('❌ Erro geral ao carregar produtos:', err);
@@ -502,65 +554,69 @@ const Print: React.FC = () => {
       } finally {
         setIsLoadingProducts(false);
       }
-    } else if (fonteDesvios === 'omie' && integracaoOmie) {
+    } else if (fonteDesvios === 'bling' && integracaoBling) {
       setIsLoadingProducts(true);
       try {
-        const response = await omieService.getProdutos(integracaoOmie.id, {
+        const response = await blingService.getProdutos(integracaoBling.id, {
           pagina: 1,
           filtro: barcode
         });
 
         if (response.success && response.data && response.data.data.length > 0) {
-          const foundProducts = response.data.data.map(item => ({
-            id: `omie-${item.codigo_produto}`,
-            name: item.descricao,
-            code: item.codigo || item.codigo_produto.toString(),
-            sku: item.codigo || item.codigo_produto.toString(),
-            price: item.valor_unitario || 0,
-            quantity: 0,
-            category: item.familia_produto || 'Geral',
-            barcode: item.codigo_barras || '',
-            provider: 'omie',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }));
+          const foundProducts = response.data.data.map(blingService.converterProdutoParaImpressao);
           addScannedProducts(foundProducts);
         } else {
-          alert(`❌ Produto não encontrado no Omie: ${barcode}`);
+          alert(`❌ Produto não encontrado no Bling: ${barcode}`);
         }
       } catch (err) {
-        console.error('❌ Erro ao buscar produto no Omie:', err);
+        console.error('❌ Erro ao buscar produto no Bling:', err);
       } finally {
         setIsLoadingProducts(false);
       }
     } else if (fonteDesvios === 'ambos') {
       setIsLoadingProducts(true);
       try {
-        const [egestorRes, omieRes] = await Promise.allSettled([
-          integracaoEgestor ? egestorService.getProdutos(integracaoEgestor.id, { page: 1, filtro: barcode }) : Promise.reject(),
-          integracaoOmie ? omieService.getProdutos(integracaoOmie.id, { pagina: 1, filtro: barcode }) : Promise.reject()
-        ]);
+        const promises = [];
+        if (integracaoEgestor) promises.push(egestorService.getProdutos(integracaoEgestor.id, { page: 1, filtro: barcode }));
+        if (integracaoOmie) promises.push(omieService.getProdutos(integracaoOmie.id, { pagina: 1, filtro: barcode }));
+        if (integracaoBling) promises.push(blingService.getProdutos(integracaoBling.id, { pagina: 1, filtro: barcode }));
+
+        const results = await Promise.allSettled(promises);
 
         let allFound: Product[] = [];
-        if (egestorRes.status === 'fulfilled' && egestorRes.value.success && egestorRes.value.data?.data) {
-          const egData = egestorRes.value.data.data as any[];
-          allFound = [...allFound, ...egData.map(egestorService.converterProdutoParaImpressao)];
+        let idx = 0;
+        
+        if (integracaoEgestor) {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.success && res.value.data?.data) {
+            allFound = [...allFound, ...(res.value.data as any).data.map(egestorService.converterProdutoParaImpressao)];
+          }
         }
-        if (omieRes.status === 'fulfilled' && omieRes.value.success && omieRes.value.data?.data) {
-          const omData = omieRes.value.data.data as any[];
-          allFound = [...allFound, ...omData.map(item => ({
-            id: `omie-${item.codigo_produto}`,
-            name: item.descricao || '',
-            code: item.codigo || item.codigo_produto?.toString() || '',
-            sku: item.codigo || item.codigo_produto?.toString() || '',
-            price: item.valor_unitario || 0,
-            quantity: 0,
-            category: item.familia_produto || 'Geral',
-            barcode: item.codigo_barras || '',
-            provider: 'omie',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }))];
+        
+        if (integracaoOmie) {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.success && res.value.data?.data) {
+            allFound = [...allFound, ...(res.value.data as any).data.map((item: any) => ({
+              id: `omie-${item.codigo_produto}`,
+              name: item.descricao || '',
+              code: item.codigo || item.codigo_produto?.toString() || '',
+              sku: item.codigo || item.codigo_produto?.toString() || '',
+              price: item.valor_unitario || 0,
+              quantity: 0,
+              category: item.familia_produto || 'Geral',
+              barcode: item.codigo_barras || '',
+              provider: 'omie',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }))];
+          }
+        }
+
+        if (integracaoBling) {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.success && res.value.data?.data) {
+            allFound = [...allFound, ...(res.value.data as any).data.map(blingService.converterProdutoParaImpressao)];
+          }
         }
 
         if (allFound.length > 0) {
@@ -1103,6 +1159,68 @@ const Print: React.FC = () => {
       setImportResult({
         success: false,
         message: error.message || 'Erro ao importar nota fiscal',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Importar itens de NF de Entrada (Bling)
+  const handleImportBlingNF = async () => {
+    if (!integracaoBling || !importNumeroNF.trim()) {
+      alert('Informe o número da nota fiscal');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await blingService.importarNF(
+        integracaoBling.id,
+        importNumeroNF.trim(),
+        importSerieNF.trim() || undefined
+      );
+
+      if (result.success && result.data) {
+        const itensConvertidos = result.data.itens.map(
+          blingService.converterItemParaImpressao
+        );
+
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as any[]);
+
+        // Seleciona todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(novosIds as any);
+
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[item.produto_id.toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+
+        setImportResult({
+          success: true,
+          message: result.message || `Importados ${result.data.total_itens} itens da NF ${importNumeroNF}`,
+          total: result.data.total_quantidade,
+        });
+
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 1500);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nota fiscal não encontrada ou sem itens',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao importar NF do Bling:', error);
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar itens da NF',
         total: 0,
       });
     } finally {
@@ -1778,7 +1896,19 @@ const Print: React.FC = () => {
                       Omie
                     </button>
                   )}
-                  {(integracaoEgestor && integracaoOmie) && (
+                  {integracaoBling && (
+                    <button
+                      onClick={() => setFonteDados('bling')}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        fonteDesvios === 'bling'
+                          ? 'bg-white text-green-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Bling
+                    </button>
+                  )}
+                  {((integracaoEgestor && integracaoOmie) || (integracaoEgestor && integracaoBling) || (integracaoOmie && integracaoBling)) && (
                     <button
                       onClick={() => {
                         setFonteDados('ambos');
@@ -1810,7 +1940,7 @@ const Print: React.FC = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : refreshEgestorProducts)}
+                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : (fonteDesvios === 'bling' ? refreshBlingProducts : refreshEgestorProducts))}
                     disabled={isLoadingProducts || (!integracaoEgestor && !integracaoOmie)}
                     className="px-4 py-2 bg-white/10 text-white border border-white/20 rounded-lg hover:bg-white/20 transition-colors font-medium disabled:opacity-50"
                   >
@@ -1890,14 +2020,14 @@ const Print: React.FC = () => {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          fonteDesvios === 'ambos' ? refreshAllProducts() : (fonteDesvios === 'omie' ? refreshOmieProducts() : refreshEgestorProducts());
+                          fonteDesvios === 'ambos' ? refreshAllProducts() : (fonteDesvios === 'omie' ? refreshOmieProducts() : (fonteDesvios === 'bling' ? refreshBlingProducts() : refreshEgestorProducts()));
                         }
                       }}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                   <button
-                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : refreshEgestorProducts)}
+                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : (fonteDesvios === 'bling' ? refreshBlingProducts : refreshEgestorProducts))}
                     className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm whitespace-nowrap"
                     title="Pesquisar em toda a base do ERP"
                   >
@@ -2644,30 +2774,45 @@ const Print: React.FC = () => {
 
               <div className="p-6 space-y-6">
                 {/* Seleção de Provedor (se houver mais de um) */}
-                {integracaoEgestor && integracaoOmie && (
+                {((integracaoEgestor && integracaoOmie) || (integracaoEgestor && integracaoBling) || (integracaoOmie && integracaoBling)) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Selecione a Origem dos Dados:
                     </label>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => setFonteDados('egestor')}
-                        className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'egestor'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold'
-                          : 'border-gray-200 text-gray-500'
-                          }`}
-                      >
-                        E-gestor
-                      </button>
-                      <button
-                        onClick={() => setFonteDados('omie')}
-                        className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'omie'
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold'
-                          : 'border-gray-200 text-gray-500'
-                          }`}
-                      >
-                        Omie
-                      </button>
+                      {integracaoEgestor && (
+                        <button
+                          onClick={() => setFonteDados('egestor')}
+                          className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'egestor'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 font-bold'
+                            : 'border-gray-200 text-gray-500'
+                            }`}
+                        >
+                          E-gestor
+                        </button>
+                      )}
+                      {integracaoOmie && (
+                        <button
+                          onClick={() => setFonteDados('omie')}
+                          className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'omie'
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold'
+                            : 'border-gray-200 text-gray-500'
+                            }`}
+                        >
+                          Omie
+                        </button>
+                      )}
+                      {integracaoBling && (
+                        <button
+                          onClick={() => setFonteDados('bling')}
+                          className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'bling'
+                            ? 'border-green-500 bg-green-50 text-green-700 font-bold'
+                            : 'border-gray-200 text-gray-500'
+                            }`}
+                        >
+                          Bling
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2685,12 +2830,12 @@ const Print: React.FC = () => {
                         : 'border-gray-200 hover:border-purple-300'
                         }`}
                     >
-                      <i className={`fas ${fonteDesvios === 'omie' ? 'fa-exchange-alt' : 'fa-sync-alt'} text-2xl mb-2`}></i>
+                      <i className={`fas ${(fonteDesvios === 'omie' || fonteDesvios === 'bling') ? 'fa-exchange-alt' : 'fa-sync-alt'} text-2xl mb-2`}></i>
                       <div className="font-medium">
-                        {fonteDesvios === 'omie' ? 'Movimentações' : 'Entrada de Estoque'}
+                        {(fonteDesvios === 'omie' || fonteDesvios === 'bling') ? 'Movimentações' : 'Entrada de Estoque'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {fonteDesvios === 'omie' ? 'Por intervalo de data' : 'Sincroniza e mostra diferenças'}
+                        {(fonteDesvios === 'omie' || fonteDesvios === 'bling') ? 'Por intervalo de data' : 'Sincroniza e mostra diferenças'}
                       </div>
                     </button>
                     <button
@@ -2787,10 +2932,10 @@ const Print: React.FC = () => {
                   </div>
                 )}
 
-                {/* Formulário para Movimentações de Estoque (Omie) */}
-                {importMode === 'sincronizacao' && fonteDesvios === 'omie' && (
+                {/* Formulário para Movimentações de Estoque (Omie/Bling) */}
+                {importMode === 'sincronizacao' && (fonteDesvios === 'omie' || fonteDesvios === 'bling') && (
                   <div className="space-y-4">
-                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-sm text-indigo-700">
+                    <div className={`${fonteDesvios === 'bling' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-indigo-50 border-indigo-200 text-indigo-700'} border rounded-lg p-4 text-sm`}>
                       <i className="fas fa-info-circle mr-2"></i>
                       Lista as movimentações de estoque no intervalo selecionado e importa os itens.
                     </div>
@@ -2888,8 +3033,10 @@ const Print: React.FC = () => {
                     onClick={() => {
                       if (fonteDesvios === 'egestor') {
                         importMode === 'nf' ? handleImportNF() : handleImportSincronizacao();
-                      } else {
+                      } else if (fonteDesvios === 'omie') {
                         importMode === 'nf' ? handleImportOmieNF() : handleImportOmieMovimentacao(importDataIni, importDataFim);
+                      } else if (fonteDesvios === 'bling') {
+                        importMode === 'nf' ? handleImportBlingNF() : alert('Movimentações Bling ainda não implementadas');
                       }
                     }}
                     disabled={isImporting || (importMode === 'nf' && !importNumeroNF.trim())}

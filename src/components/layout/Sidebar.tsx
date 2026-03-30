@@ -21,6 +21,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         { path: '/print', icon: 'fa-print', label: 'Impressão' },
         { path: '/api-integration', icon: 'fa-database', label: 'E-gestor' },
         { path: '/omie-integration', icon: 'fa-boxes', label: 'Omie' },
+        { path: '/bling-integration', icon: 'fa-tags', label: 'Bling' },
       ],
     },
     {
