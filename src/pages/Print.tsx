@@ -1228,6 +1228,65 @@ const Print: React.FC = () => {
     }
   };
 
+  // Importar Movimentações (Bling)
+  const handleImportBlingMovimentacao = async (dataIni: string, dataFim: string) => {
+    if (!integracaoBling) return;
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await blingService.importarMovimentacao(
+        integracaoBling.id,
+        dataIni,
+        dataFim
+      );
+
+      if (result.success && result.data && result.data.itens.length > 0) {
+        const itensConvertidos = result.data.itens.map(
+          blingService.converterItemParaImpressao
+        );
+
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as any[]);
+
+        // Seleciona todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(novosIds as any);
+
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[item.produto_id.toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+
+        setImportResult({
+          success: true,
+          message: result.message || `Importados ${result.data.total_itens} itens únicos das movimentações`,
+          total: result.data.total_quantidade,
+        });
+
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 2000);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nenhuma entrada de estoque encontrada no período',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao importar movimentações do Bling:', error);
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar movimentações',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Importar Movimentações (Omie)
   const handleImportOmieMovimentacao = async (dataIni: string, dataFim: string) => {
     if (!integracaoOmie) return;
@@ -3036,7 +3095,7 @@ const Print: React.FC = () => {
                       } else if (fonteDesvios === 'omie') {
                         importMode === 'nf' ? handleImportOmieNF() : handleImportOmieMovimentacao(importDataIni, importDataFim);
                       } else if (fonteDesvios === 'bling') {
-                        importMode === 'nf' ? handleImportBlingNF() : alert('Movimentações Bling ainda não implementadas');
+                        importMode === 'nf' ? handleImportBlingNF() : handleImportBlingMovimentacao(importDataIni, importDataFim);
                       }
                     }}
                     disabled={isImporting || (importMode === 'nf' && !importNumeroNF.trim())}
@@ -3052,8 +3111,8 @@ const Print: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <i className={`fas ${importMode === 'sincronizacao' ? (fonteDesvios === 'omie' ? 'fa-exchange-alt' : 'fa-sync-alt') : 'fa-download'} mr-2`}></i>
-                        {importMode === 'sincronizacao' ? (fonteDesvios === 'omie' ? 'Listar Movimentações' : 'Sincronizar e Importar') : 'Importar'}
+                        <i className={`fas ${importMode === 'sincronizacao' ? (fonteDesvios === 'omie' || fonteDesvios === 'bling' ? 'fa-exchange-alt' : 'fa-sync-alt') : 'fa-download'} mr-2`}></i>
+                        {importMode === 'sincronizacao' ? (fonteDesvios === 'omie' || fonteDesvios === 'bling' ? 'Listar Movimentações' : 'Sincronizar e Importar') : 'Importar'}
                       </>
                     )}
                   </button>

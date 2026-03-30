@@ -254,6 +254,35 @@ export const importarNF = async (
 };
 
 /**
+ * Importa itens de movimentações de estoque por período
+ */
+export const importarMovimentacao = async (
+  integracaoId: number,
+  dataInicial: string,
+  dataFinal: string
+): Promise<ApiResponse<ImportacaoEtiquetasResponse>> => {
+  try {
+    const response = await api.post<{
+      success: boolean;
+      data: ImportacaoEtiquetasResponse;
+      message?: string;
+    }>(`/integracoes/${integracaoId}/bling/importar/movimentacao`, {
+      data_inicial: dataInicial,
+      data_final: dataFinal,
+      agrupar_por_produto: true,
+    });
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  } catch (error: any) {
+    return { success: false, message: handleApiError(error) };
+  }
+};
+
+/**
  * Converter produto do Bling para formato do sistema de impressão
  */
 export const converterProdutoParaImpressao = (produto: BlingProduto) => {
@@ -299,6 +328,7 @@ export default {
   getProdutos,
   getCategorias,
   importarNF,
+  importarMovimentacao,
   exchangeCode,
   getUltimaNF,
   getUltimaMovimentacao,
