@@ -21,7 +21,6 @@ const BlingIntegration: React.FC = () => {
   const [categorias, setCategorias] = useState<BlingCategoria[]>([]);
   const [ultimaNota, setUltimaNota] = useState<BlingNotaFiscal | null>(null);
   const [ultimaMovimentacao, setUltimaMovimentacao] = useState<BlingMovimentacao | null>(null);
-  const [isLoadingInfo, setIsLoadingInfo] = useState(false);
   const [isExchanging, setIsExchanging] = useState(false);
   const [authCode, setAuthCode] = useState('');
 
@@ -139,7 +138,6 @@ const BlingIntegration: React.FC = () => {
 
   const loadInfoRapida = async () => {
     if (!selectedIntegracao || !selectedIntegracao.token) return;
-    setIsLoadingInfo(true);
     try {
       const [prodRes, catRes, notaRes, movRes] = await Promise.all([
         blingService.getProdutos(selectedIntegracao.id, { pagina: 1 }),
@@ -161,7 +159,6 @@ const BlingIntegration: React.FC = () => {
         setUltimaMovimentacao((movRes as any).data as BlingMovimentacao);
       }
     } finally {
-      setIsLoadingInfo(false);
     }
   };
 
