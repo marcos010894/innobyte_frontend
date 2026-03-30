@@ -37,18 +37,28 @@ const BlingIntegration: React.FC = () => {
   }, [user?.id]);
 
   const loadIntegracoes = async () => {
-    if (!user?.id) return;
+    if (!user?.id) return [];
     setIsLoading(true);
     try {
       const response = await integracoesService.getIntegracoes(user.id);
       if (response.success && response.data) {
         const blingIntegracoes = response.data.data.filter((i) => i.provedor === 'Bling');
         setIntegracoes(blingIntegracoes);
-        if (!selectedIntegracao) {
+        
+        // Se já tiver uma selecionada, atualiza com os dados novos do banco (para pegar o token novo)
+        if (selectedIntegracao) {
+          const atualizada = blingIntegracoes.find(i => i.id === selectedIntegracao.id);
+          if (atualizada) {
+            setSelectedIntegracao(atualizada);
+          }
+        } else {
           const ativa = blingIntegracoes.find((i) => i.ativa);
           if (ativa) setSelectedIntegracao(ativa);
         }
+
+        return blingIntegracoes;
       }
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +130,9 @@ const BlingIntegration: React.FC = () => {
     setIsExchanging(true);
     setMessage(null);
     try {
-      const response = await blingService.exchangeCode(selectedIntegracao.id, authCode);
+      // Limpar o código se contiver &state= ou outros parâmetros (caso o usuário copie a URL toda)
+      const cleanCode = authCode.split('&')[0].trim();
+      const response = await blingService.exchangeCode(selectedIntegracao.id, cleanCode);
       if (response.success) {
         setMessage({ type: 'success', text: '✅ Tokens gerados e salvos com sucesso!' });
         setAuthCode('');
