@@ -30,10 +30,11 @@ export interface LoginCredentials {
 
 // 🔐 Dados da Licença do Cliente (resposta do login)
 export interface LicencaAuth {
-  tipo_licenca: 'temporaria' | 'contrato';
+  tipo_licenca: 'temporaria' | 'contrato' | 'experiencia';
   data_inicio: string;
   data_expiracao: string;
   dias_para_vencer: number;
+  valor_parcela: number;
   vencida: boolean;
   limite_empresas: number;
   empresas_ativas: number;

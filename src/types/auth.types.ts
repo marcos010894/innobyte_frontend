@@ -5,7 +5,7 @@ export type TipoUsuario = 'master' | 'cliente';
 
 // Dados da licença do cliente
 export interface Licenca {
-  tipo_licenca: 'temporaria' | 'contrato';
+  tipo_licenca: 'temporaria' | 'contrato' | 'experiencia';
   data_inicio: string;
   data_expiracao: string;
   dias_para_vencer: number;

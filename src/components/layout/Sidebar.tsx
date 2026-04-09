@@ -90,26 +90,36 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
         {/* Menu de Navegação */}
         <nav className="mt-4 pb-4">
-          {filteredMenuItems.map((section, idx) => (
-            <div key={idx}>
-              <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-6 first:mt-0">
-                {section.section}
+          {filteredMenuItems.map((section, idx) => {
+            const isBloqueadaPorAtraso = user?.licenca && user.licenca.dias_para_vencer < -3;
+            const realBloqueada = user?.licenca?.bloqueada || isBloqueadaPorAtraso;
+
+            return (
+              <div key={idx}>
+                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase mt-6 first:mt-0">
+                  {section.section}
+                </div>
+                {section.items.map((item) => {
+                  const isDisabled = realBloqueada && item.path !== '/' && item.path !== '/profile';
+                  
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={isDisabled ? '#' : item.path}
+                      onClick={isDisabled ? (e) => e.preventDefault() : onClose}
+                      className={({ isActive }) =>
+                        `nav-link ${isActive ? 'nav-link-active' : ''} ${isDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50' : ''}`
+                      }
+                    >
+                      <i className={`fas ${item.icon} mr-3 ${item.path === '/' ? 'text-primary' : ''} ${isDisabled ? 'text-gray-400' : ''}`}></i>
+                      {item.label}
+                      {isDisabled && <i className="fas fa-lock ml-auto text-[10px] text-gray-400"></i>}
+                    </NavLink>
+                  );
+                })}
               </div>
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={onClose} // Fecha o menu ao clicar em um link (mobile)
-                  className={({ isActive }) =>
-                    `nav-link ${isActive ? 'nav-link-active' : ''}`
-                  }
-                >
-                  <i className={`fas ${item.icon} mr-3 ${item.path === '/' ? 'text-primary' : ''}`}></i>
-                  {item.label}
-                </NavLink>
-              ))}
-            </div>
-          ))}
+            );
+          })}
         </nav>
       </div>
     </>

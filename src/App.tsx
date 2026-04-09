@@ -17,6 +17,7 @@ import History from './pages/History';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -38,8 +39,9 @@ function App() {
           theme="light"
         />
         <Routes>
-          {/* Rota pública - Login */}
+          {/* Rotas públicas */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
           {/* Rotas protegidas com layout */}
           <Route
