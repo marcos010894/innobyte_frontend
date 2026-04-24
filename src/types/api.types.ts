@@ -290,7 +290,7 @@ export interface EmpresasResponse {
 export interface IntegracaoAPI {
   id: number;
   usuario_id: number;
-  provedor: 'eGestor' | 'Omie' | 'Bling' | 'Tiny' | 'Conta Azul' | 'Outro';
+  provedor: 'eGestor' | 'Omie' | 'Bling' | 'Tiny' | 'Conta Azul' | 'Odoo' | 'Outro';
   nome_integracao: string;
   app_key: string;
   app_secret: string;
@@ -304,7 +304,7 @@ export interface IntegracaoAPI {
 }
 
 export interface CreateIntegracaoData {
-  provedor: 'eGestor' | 'Omie' | 'Bling' | 'Tiny' | 'Conta Azul' | 'Outro';
+  provedor: 'eGestor' | 'Omie' | 'Bling' | 'Tiny' | 'Conta Azul' | 'Odoo' | 'Outro';
   nome_integracao: string;
   app_key: string;
   app_secret: string;
@@ -313,7 +313,7 @@ export interface CreateIntegracaoData {
 }
 
 export interface UpdateIntegracaoData {
-  provedor?: 'eGestor' | 'Omie' | 'Bling' | 'Tiny' | 'Conta Azul' | 'Outro';
+  provedor?: 'eGestor' | 'Omie' | 'Bling' | 'Tiny' | 'Conta Azul' | 'Odoo' | 'Outro';
   nome_integracao?: string;
   app_key?: string;
   app_secret?: string;

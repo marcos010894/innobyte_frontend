@@ -21,5 +21,11 @@ export * from './tokens.service';
 // CNPJ
 export * from './cnpj.service';
 
+// ERP Integrations
+export { default as egestorService } from './egestor.service';
+export { default as omieService } from './omie.service';
+export { default as blingService } from './bling.service';
+export { default as odooService } from './odoo.service';
+
 // API Base
 export { default as api } from './api';

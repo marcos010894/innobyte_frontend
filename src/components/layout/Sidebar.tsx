@@ -22,6 +22,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         { path: '/api-integration', icon: 'fa-database', label: 'E-gestor' },
         { path: '/omie-integration', icon: 'fa-boxes', label: 'Omie' },
         { path: '/bling-integration', icon: 'fa-tags', label: 'Bling' },
+        { path: '/odoo-integration', icon: 'fa-plug', label: 'Odoo' },
       ],
     },
     {

@@ -7,6 +7,7 @@ import Print from './pages/Print';
 import ApiIntegration from './pages/ApiIntegration';
 import OmieIntegration from './pages/OmieIntegration';
 import BlingIntegration from './pages/BlingIntegration';
+import OdooIntegration from './pages/OdooIntegration';
 import Templates from './pages/Templates';
 import TemplatesPage from './pages/TemplatesPage';
 import UsersManagement from './pages/UsersManagement';
@@ -58,6 +59,7 @@ function App() {
             <Route path="api-integration" element={<ApiIntegration />} />
             <Route path="omie-integration" element={<OmieIntegration />} />
             <Route path="bling-integration" element={<BlingIntegration />} />
+            <Route path="odoo-integration" element={<OdooIntegration />} />
             <Route path="templates" element={<TemplatesPage />} />
             <Route path="saved-templates" element={<Templates />} />
             <Route path="users" element={<UsersManagement />} />

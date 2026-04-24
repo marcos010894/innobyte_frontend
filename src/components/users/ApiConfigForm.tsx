@@ -67,6 +67,7 @@ const ApiConfigForm = () => {
             <option value="egestor">eGestor</option>
             <option value="omie">Omie</option>
             <option value="bling">Bling</option>
+            <option value="odoo">Odoo</option>
             <option value="tiny">Tiny ERP</option>
             <option value="sap">SAP</option>
             <option value="totvs">TOTVS</option>

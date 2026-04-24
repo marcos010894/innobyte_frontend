@@ -14,6 +14,7 @@ import * as integracoesService from '@/services/integracoes.service';
 import * as egestorService from '@/services/egestor.service';
 import * as omieService from '@/services/omie.service';
 import * as blingService from '@/services/bling.service';
+import * as odooService from '@/services/odoo.service';
 import { toast } from 'react-toastify';
 import type { IntegracaoAPI } from '@/types/api.types';
 import { renderLabelToNativeCanvas } from '@/utils/canvasRenderer';
@@ -48,7 +49,8 @@ const Print: React.FC = () => {
   const [integracaoEgestor, setIntegracaoEgestor] = useState<IntegracaoAPI | null>(null);
   const [integracaoOmie, setIntegracaoOmie] = useState<IntegracaoAPI | null>(null);
   const [integracaoBling, setIntegracaoBling] = useState<IntegracaoAPI | null>(null);
-  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor' | 'omie' | 'bling' | 'ambos'>('manual');
+  const [integracaoOdoo, setIntegracaoOdoo] = useState<IntegracaoAPI | null>(null);
+  const [fonteDesvios, setFonteDados] = useState<'manual' | 'egestor' | 'omie' | 'bling' | 'odoo' | 'ambos'>('manual');
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [egestorPage, setEgestorPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
@@ -189,24 +191,31 @@ const Print: React.FC = () => {
             const bl = allIntegrations.find(i => 
               i.provedor.toLowerCase() === 'bling' && i.ativa
             );
-
+            const od = allIntegrations.find(i => 
+              i.provedor.toLowerCase() === 'odoo' && i.ativa
+            );
+            
             setIntegracaoEgestor(eg || null);
             setIntegracaoOmie(om || null);
             setIntegracaoBling(bl || null);
+            setIntegracaoOdoo(od || null);
 
             // Define a fonte inicial e carrega produtos
-            if ((om && eg) || (om && bl && bl.token) || (eg && bl && bl.token)) {
+            if ((om && eg) || (om && bl && bl.token) || (eg && bl && bl.token) || (od && (om || eg || bl))) {
               setFonteDados('ambos');
-              await loadAllProducts(1, false, eg?.id, om?.id, bl?.id);
+              await loadAllProducts(1, false, eg?.id, om?.id, bl?.id, od?.id);
             } else if (om) {
               setFonteDados('omie');
               await loadOmieProducts(om.id, 1);
             } else if (eg) {
               setFonteDados('egestor');
               await loadEgestorProducts(eg.id, 1);
-            } else if (bl && bl.token) {
+            } else if (bl && (bl.token || bl.app_key)) {
               setFonteDados('bling');
               await loadBlingProducts(bl.id, 1);
+            } else if (od) {
+              setFonteDados('odoo');
+              await loadOdooProducts(od.id, 1);
             } else {
               setFonteDados('manual');
               loadMockProducts();
@@ -304,6 +313,8 @@ const Print: React.FC = () => {
       await loadOmieProducts(integracaoOmie.id, egestorPage + 1, true);
     } else if (fonteDesvios === 'bling' && integracaoBling) {
       await loadBlingProducts(integracaoBling.id, egestorPage + 1, true);
+    } else if (fonteDesvios === 'odoo' && integracaoOdoo) {
+      await loadOdooProducts(integracaoOdoo.id, egestorPage + 1, true);
     }
   };
 
@@ -396,13 +407,48 @@ const Print: React.FC = () => {
     await loadBlingProducts(integracaoBling.id, 1, false);
   };
 
+  // Função para carregar produtos do Odoo
+  const loadOdooProducts = async (integracaoId: number, page: number, append: boolean = false) => {
+    setIsLoadingProducts(true);
+    try {
+      const response = await odooService.getProdutos(integracaoId, { pagina: page, filtro: searchTerm || undefined });
+
+      if (response.success && response.data) {
+        const convertedProducts = response.data.data.map(odooService.converterItemParaImpressao);
+
+        if (append) {
+          setProducts(prev => [...prev, ...convertedProducts]);
+        } else {
+          setProducts(convertedProducts as any);
+        }
+
+        setEgestorPage(page);
+        setHasMoreProducts(response.data.data.length >= 50);
+      }
+    } catch (err) {
+      console.error('❌ Erro ao carregar produtos do Odoo:', err);
+    } finally {
+      setIsLoadingProducts(false);
+    }
+  };
+
+  // Recarregar produtos do Odoo
+  const refreshOdooProducts = async () => {
+    if (!integracaoOdoo) return;
+    setProducts([]);
+    setSelectedProducts(new Set());
+    setPrintQuantities({});
+    await loadOdooProducts(integracaoOdoo.id, 1, false);
+  };
+
   // Função para carregar de todas as fontes simultaneamente
-  const loadAllProducts = async (page: number, append: boolean = false, egId?: number, omId?: number, blId?: number) => {
+  const loadAllProducts = async (page: number, append: boolean = false, egId?: number, omId?: number, blId?: number, odId?: number) => {
     const egestorId = egId || integracaoEgestor?.id;
     const omieId = omId || integracaoOmie?.id;
     const blingId = blId || integracaoBling?.id;
+    const odooId = odId || integracaoOdoo?.id;
     
-    if (!egestorId && !omieId && !blingId) return;
+    if (!egestorId && !omieId && !blingId && !odooId) return;
 
     setIsLoadingProducts(true);
     try {
@@ -410,6 +456,7 @@ const Print: React.FC = () => {
       if (egestorId) promises.push(egestorService.getProdutos(egestorId, { page, filtro: searchTerm || undefined }));
       if (omieId) promises.push(omieService.getProdutos(omieId, { pagina: page, filtro: searchTerm || undefined }));
       if (blingId) promises.push(blingService.getProdutos(blingId, { pagina: page, filtro: searchTerm || undefined }));
+      if (odooId) promises.push(odooService.getProdutos(odooId, { pagina: page, filtro: searchTerm || undefined }));
 
       const results = await Promise.allSettled(promises);
       let combined: Product[] = [];
@@ -455,6 +502,16 @@ const Print: React.FC = () => {
           const items = (res.value.data as any).data.map(blingService.converterProdutoParaImpressao);
           combined = [...combined, ...items];
           console.log(`✅ Bling: Carregados ${items.length} produtos.`);
+        }
+      }
+
+      // Processar Odoo
+      if (odooId) {
+        const res = results[resultIdx++];
+        if (res.status === 'fulfilled' && res.value.success && res.value.data) {
+          const items = (res.value.data as any).data.map(odooService.converterItemParaImpressao);
+          combined = [...combined, ...items];
+          console.log(`✅ Odoo: Carregados ${items.length} produtos.`);
         }
       }
 
@@ -573,6 +630,25 @@ const Print: React.FC = () => {
       } finally {
         setIsLoadingProducts(false);
       }
+    } else if (fonteDesvios === 'odoo' && integracaoOdoo) {
+      setIsLoadingProducts(true);
+      try {
+        const response = await odooService.getProdutos(integracaoOdoo.id, {
+          pagina: 1,
+          filtro: barcode
+        });
+
+        if (response.success && response.data && response.data.data.length > 0) {
+          const foundProducts = response.data.data.map(odooService.converterItemParaImpressao);
+          addScannedProducts(foundProducts);
+        } else {
+          alert(`❌ Produto não encontrado no Odoo: ${barcode}`);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao buscar produto no Odoo:', err);
+      } finally {
+        setIsLoadingProducts(false);
+      }
     } else if (fonteDesvios === 'ambos') {
       setIsLoadingProducts(true);
       try {
@@ -616,6 +692,13 @@ const Print: React.FC = () => {
           const res = results[idx++];
           if (res.status === 'fulfilled' && res.value.success && res.value.data?.data) {
             allFound = [...allFound, ...(res.value.data as any).data.map(blingService.converterProdutoParaImpressao)];
+          }
+        }
+
+        if (integracaoOdoo) {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.success && res.value.data?.data) {
+            allFound = [...allFound, ...(res.value.data as any).data.map(odooService.converterItemParaImpressao)];
           }
         }
 
@@ -1345,6 +1428,126 @@ const Print: React.FC = () => {
     }
   };
 
+  // Importar itens de NF de Entrada (Odoo)
+  const handleImportOdooNF = async () => {
+    if (!integracaoOdoo || !importNumeroNF.trim()) {
+      alert('Informe o número da nota fiscal');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await odooService.importarNf(
+        integracaoOdoo.id,
+        importNumeroNF.trim()
+      );
+
+      if (result.success && result.data) {
+        const itensConvertidos = result.data.itens.map(
+          odooService.converterItemParaImpressao
+        );
+
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as any[]);
+
+        // Seleciona todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(novosIds as any);
+
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[(item.produto_id || item.codigo_produto || '').toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+
+        setImportResult({
+          success: true,
+          message: result.message || `Importados ${result.data.total_itens} itens da NF ${importNumeroNF}`,
+          total: result.data.total_quantidade,
+        });
+
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 1500);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nota fiscal não encontrada ou sem itens',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao importar NF do Odoo:', error);
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar itens da NF',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Importar Movimentações (Odoo)
+  const handleImportOdooMovimentacao = async (dataIni: string, dataFim: string) => {
+    if (!integracaoOdoo) return;
+
+    setIsImporting(true);
+    setImportResult(null);
+
+    try {
+      const result = await odooService.importarMovimentacao(
+        integracaoOdoo.id,
+        dataIni,
+        dataFim
+      );
+
+      if (result.success && result.data && result.data.itens.length > 0) {
+        const itensConvertidos = result.data.itens.map(
+          odooService.converterItemParaImpressao
+        );
+
+        // Mostrar apenas os produtos importados
+        setProducts(itensConvertidos as any[]);
+
+        // Seleciona todos os produtos importados e definir quantidades
+        const novosIds = new Set(itensConvertidos.map(p => p.id));
+        setSelectedProducts(novosIds as any);
+
+        const novasQuantidades: Record<string, number> = {};
+        result.data.itens.forEach(item => {
+          novasQuantidades[(item.produto_id || item.codigo_produto || '').toString()] = item.quantidade;
+        });
+        setPrintQuantities(prev => ({ ...prev, ...novasQuantidades }));
+
+        setImportResult({
+          success: true,
+          message: result.message || `Importados ${result.data.total_itens} itens únicos das movimentações`,
+          total: result.data.total_quantidade,
+        });
+
+        // Fechar modal após importação bem-sucedida
+        setTimeout(() => setShowImportModal(false), 2000);
+      } else {
+        setImportResult({
+          success: false,
+          message: result.message || 'Nenhuma entrada de estoque encontrada no período',
+          total: 0,
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao importar movimentações do Odoo:', error);
+      setImportResult({
+        success: false,
+        message: error.message || 'Erro ao importar movimentações',
+        total: 0,
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Excluir produtos selecionados da lista
   const handleExcluirSelecionados = () => {
     if (selectedProducts.size === 0) {
@@ -1919,7 +2122,7 @@ const Print: React.FC = () => {
           {/* Coluna Esquerda: Lista de Produtos */}
           <div className="lg:col-span-2 space-y-6">
             {/* Seletor de Fonte de Dados */}
-            {(integracaoEgestor || integracaoOmie) && (
+            {(integracaoEgestor || integracaoOmie || integracaoBling || integracaoOdoo) && (
               <div className="bg-white rounded-lg shadow-sm p-4 border border-blue-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
@@ -1967,7 +2170,19 @@ const Print: React.FC = () => {
                       Bling
                     </button>
                   )}
-                  {((integracaoEgestor && integracaoOmie) || (integracaoEgestor && integracaoBling) || (integracaoOmie && integracaoBling)) && (
+                  {integracaoOdoo && (
+                    <button
+                      onClick={() => setFonteDados('odoo')}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        fonteDesvios === 'odoo'
+                          ? 'bg-white text-orange-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Odoo
+                    </button>
+                  )}
+                  {((integracaoEgestor && integracaoOmie) || (integracaoEgestor && integracaoBling) || (integracaoOmie && integracaoBling) || (integracaoOdoo && (integracaoEgestor || integracaoOmie || integracaoBling))) && (
                     <button
                       onClick={() => {
                         setFonteDados('ambos');
@@ -1999,20 +2214,20 @@ const Print: React.FC = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : (fonteDesvios === 'bling' ? refreshBlingProducts : refreshEgestorProducts))}
-                    disabled={isLoadingProducts || (!integracaoEgestor && !integracaoOmie)}
+                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : (fonteDesvios === 'bling' ? refreshBlingProducts : (fonteDesvios === 'odoo' ? refreshOdooProducts : refreshEgestorProducts)))}
+                    disabled={isLoadingProducts || (!integracaoEgestor && !integracaoOmie && !integracaoBling && !integracaoOdoo)}
                     className="px-4 py-2 bg-white/10 text-white border border-white/20 rounded-lg hover:bg-white/20 transition-colors font-medium disabled:opacity-50"
                   >
                     <i className={`fas fa-sync ${isLoadingProducts ? 'fa-spin' : ''} mr-2`}></i>
                     Atualizar
                   </button>
-                  {fonteDesvios === 'omie' && (
+                  {(fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo') && (
                     <button
                       onClick={() => {
                         setImportMode('sincronizacao');
                         setShowImportModal(true);
                       }}
-                      className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium shadow-sm"
+                      className={`px-4 py-2 ${fonteDesvios === 'odoo' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-indigo-500 hover:bg-indigo-600'} text-white rounded-lg transition-colors font-medium shadow-sm`}
                     >
                       <i className="fas fa-calendar-alt mr-2"></i>
                       Movimentações
@@ -2023,7 +2238,7 @@ const Print: React.FC = () => {
                       setShowImportModal(true);
                       if (integracaoEgestor) loadCategorias();
                     }}
-                    disabled={!integracaoEgestor && !integracaoOmie}
+                    disabled={!integracaoEgestor && !integracaoOmie && !integracaoBling && !integracaoOdoo}
                     className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <i className="fas fa-download mr-2"></i>
@@ -2079,14 +2294,14 @@ const Print: React.FC = () => {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          fonteDesvios === 'ambos' ? refreshAllProducts() : (fonteDesvios === 'omie' ? refreshOmieProducts() : (fonteDesvios === 'bling' ? refreshBlingProducts() : refreshEgestorProducts()));
+                          fonteDesvios === 'ambos' ? refreshAllProducts() : (fonteDesvios === 'omie' ? refreshOmieProducts() : (fonteDesvios === 'bling' ? refreshBlingProducts() : (fonteDesvios === 'odoo' ? refreshOdooProducts() : refreshEgestorProducts())));
                         }
                       }}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
                   <button
-                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : (fonteDesvios === 'bling' ? refreshBlingProducts : refreshEgestorProducts))}
+                    onClick={fonteDesvios === 'ambos' ? refreshAllProducts : (fonteDesvios === 'omie' ? refreshOmieProducts : (fonteDesvios === 'bling' ? refreshBlingProducts : (fonteDesvios === 'odoo' ? refreshOdooProducts : refreshEgestorProducts)))}
                     className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm whitespace-nowrap"
                     title="Pesquisar em toda a base do ERP"
                   >
@@ -2255,7 +2470,21 @@ const Print: React.FC = () => {
                           <i className="fas fa-plug mr-1"></i>Omie
                         </span>
                         <button
-                          onClick={refreshOmieProducts}
+                          onClick={refreshOdooProducts}
+                          disabled={isLoadingProducts}
+                          className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                          title="Recarregar produtos"
+                        >
+                          <i className={`fas fa-sync ${isLoadingProducts ? 'fa-spin' : ''}`}></i>
+                        </button>
+                      </>
+                    ) : fonteDesvios === 'odoo' ? (
+                      <>
+                        <span className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full">
+                          <i className="fas fa-plug mr-1"></i>Odoo
+                        </span>
+                        <button
+                          onClick={refreshOdooProducts}
                           disabled={isLoadingProducts}
                           className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded transition-colors"
                           title="Recarregar produtos"
@@ -2833,7 +3062,7 @@ const Print: React.FC = () => {
 
               <div className="p-6 space-y-6">
                 {/* Seleção de Provedor (se houver mais de um) */}
-                {((integracaoEgestor && integracaoOmie) || (integracaoEgestor && integracaoBling) || (integracaoOmie && integracaoBling)) && (
+                {((integracaoEgestor && integracaoOmie) || (integracaoEgestor && integracaoBling) || (integracaoOmie && integracaoBling) || (integracaoOdoo && (integracaoEgestor || integracaoOmie || integracaoBling))) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
                       Selecione a Origem dos Dados:
@@ -2872,6 +3101,17 @@ const Print: React.FC = () => {
                           Bling
                         </button>
                       )}
+                      {integracaoOdoo && (
+                        <button
+                          onClick={() => setFonteDados('odoo')}
+                          className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all ${fonteDesvios === 'odoo'
+                            ? 'border-orange-500 bg-orange-50 text-orange-700 font-bold'
+                            : 'border-gray-200 text-gray-500'
+                            }`}
+                        >
+                          Odoo
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2889,12 +3129,12 @@ const Print: React.FC = () => {
                         : 'border-gray-200 hover:border-purple-300'
                         }`}
                     >
-                      <i className={`fas ${(fonteDesvios === 'omie' || fonteDesvios === 'bling') ? 'fa-exchange-alt' : 'fa-sync-alt'} text-2xl mb-2`}></i>
+                      <i className={`fas ${(fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo') ? 'fa-exchange-alt' : 'fa-sync-alt'} text-2xl mb-2`}></i>
                       <div className="font-medium">
-                        {(fonteDesvios === 'omie' || fonteDesvios === 'bling') ? 'Movimentações' : 'Entrada de Estoque'}
+                        {(fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo') ? 'Movimentações' : 'Entrada de Estoque'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {(fonteDesvios === 'omie' || fonteDesvios === 'bling') ? 'Por intervalo de data' : 'Sincroniza e mostra diferenças'}
+                        {(fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo') ? 'Por intervalo de data' : 'Sincroniza e mostra diferenças'}
                       </div>
                     </button>
                     <button
@@ -2991,10 +3231,10 @@ const Print: React.FC = () => {
                   </div>
                 )}
 
-                {/* Formulário para Movimentações de Estoque (Omie/Bling) */}
-                {importMode === 'sincronizacao' && (fonteDesvios === 'omie' || fonteDesvios === 'bling') && (
+                {/* Formulário para Movimentações de Estoque (Omie/Bling/Odoo) */}
+                {importMode === 'sincronizacao' && (fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo') && (
                   <div className="space-y-4">
-                    <div className={`${fonteDesvios === 'bling' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-indigo-50 border-indigo-200 text-indigo-700'} border rounded-lg p-4 text-sm`}>
+                    <div className={`${fonteDesvios === 'bling' ? 'bg-green-50 border-green-200 text-green-700' : (fonteDesvios === 'odoo' ? 'bg-orange-50 border-orange-200 text-orange-700' : 'bg-indigo-50 border-indigo-200 text-indigo-700')} border rounded-lg p-4 text-sm`}>
                       <i className="fas fa-info-circle mr-2"></i>
                       Lista as movimentações de estoque no intervalo selecionado e importa os itens.
                     </div>
@@ -3096,12 +3336,14 @@ const Print: React.FC = () => {
                         importMode === 'nf' ? handleImportOmieNF() : handleImportOmieMovimentacao(importDataIni, importDataFim);
                       } else if (fonteDesvios === 'bling') {
                         importMode === 'nf' ? handleImportBlingNF() : handleImportBlingMovimentacao(importDataIni, importDataFim);
+                      } else if (fonteDesvios === 'odoo') {
+                        importMode === 'nf' ? handleImportOdooNF() : handleImportOdooMovimentacao(importDataIni, importDataFim);
                       }
                     }}
                     disabled={isImporting || (importMode === 'nf' && !importNumeroNF.trim())}
                     className={`flex-1 px-4 py-3 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium ${fonteDesvios === 'omie'
                       ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700'
-                      : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                      : (fonteDesvios === 'odoo' ? 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700' : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700')
                       }`}
                   >
                     {isImporting ? (
@@ -3111,8 +3353,8 @@ const Print: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <i className={`fas ${importMode === 'sincronizacao' ? (fonteDesvios === 'omie' || fonteDesvios === 'bling' ? 'fa-exchange-alt' : 'fa-sync-alt') : 'fa-download'} mr-2`}></i>
-                        {importMode === 'sincronizacao' ? (fonteDesvios === 'omie' || fonteDesvios === 'bling' ? 'Listar Movimentações' : 'Sincronizar e Importar') : 'Importar'}
+                        <i className={`fas ${importMode === 'sincronizacao' ? (fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo' ? 'fa-exchange-alt' : 'fa-sync-alt') : 'fa-download'} mr-2`}></i>
+                        {importMode === 'sincronizacao' ? (fonteDesvios === 'omie' || fonteDesvios === 'bling' || fonteDesvios === 'odoo' ? 'Listar Movimentações' : 'Sincronizar e Importar') : 'Importar'}
                       </>
                     )}
                   </button>
